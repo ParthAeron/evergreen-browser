@@ -3,7 +3,14 @@
 use wry::dpi::{LogicalPosition, LogicalSize, Position, Size};
 use wry::Rect;
 
-pub const EMBEDDED_CHROME_HTML: &str = include_str!("../ui/index.html");
+pub const RAW_CHROME_HTML: &str = include_str!("../ui/index.html");
+pub const LOGO_BASE64: &str = include_str!("../ui/logo.b64");
+
+pub fn get_chrome_html() -> String {
+    RAW_CHROME_HTML.replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+}
+
+pub static EMBEDDED_CHROME_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(get_chrome_html);
 pub const CHROME_HEIGHT: f64 = 76.0;
 
 /// Create logical bounds for child webviews

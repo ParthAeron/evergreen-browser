@@ -26,6 +26,7 @@ enum BrowserEvent {
     Ipc(UiToHostMessage),
     TabTitleChanged(TabId, String),
     TabNavigated(TabId, String),
+    HistoryChanged(TabId, bool, bool),
     CommandDone(String, bool, String),
     Shortcut(String),
 }
@@ -97,6 +98,8 @@ impl BrowserApp {
         let mut builder = WebViewBuilder::new()
             .with_bounds(bounds)
             .with_incognito(true)
+            .with_transparent(true)
+            .with_background_color((24, 24, 32, 255))
             .with_devtools(true);
 
         // Custom protocol for internal links
@@ -124,7 +127,7 @@ impl BrowserApp {
 
         // Load internal pages directly via with_html for instantaneous rendering
         if is_newtab {
-            builder = builder.with_html(home_ui::HOME_HTML);
+            builder = builder.with_html(home_ui::HOME_HTML.as_str());
         } else if is_settings {
             let html = settings_ui::SETTINGS_HTML.replace("Detecting...", &format!("v{} (Active)", self.runtime_version));
             builder = builder.with_html(html);
@@ -138,6 +141,10 @@ impl BrowserApp {
                 let _ = proxy_title.send_event(BrowserEvent::TabTitleChanged(tab_id, title));
             })
             .with_navigation_handler(move |nav_url: String| {
+                // Ignore base64 data URLs produced by with_html
+                if nav_url.starts_with("data:text/html") {
+                    return true;
+                }
                 if nav_url.starts_with("evergreen://settings") {
                     let _ = proxy_nav_interceptor.send_event(BrowserEvent::Ipc(UiToHostMessage::OpenSettings));
                     return false;
@@ -153,6 +160,7 @@ impl BrowserApp {
             .build_as_child(window.as_ref())?;
 
         accelerator::attach_accelerator_keys(&webview, self.proxy.clone());
+        accelerator::attach_history_handler(&webview, tab_id, self.proxy.clone());
 
         Ok(webview)
     }
@@ -330,7 +338,8 @@ fn extract_host(url: &str) -> Option<String> {
 impl ApplicationHandler<BrowserEvent> for BrowserApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_none() {
-            let window_attributes = window::default_window_attributes();
+            let mut window_attributes = window::default_window_attributes();
+            window_attributes = window_attributes.with_visible(false);
 
             let window = match event_loop.create_window(window_attributes) {
                 Ok(w) => Arc::new(w),
@@ -347,7 +356,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
 
             match WebViewBuilder::new()
                 .with_bounds(chrome_bounds)
-                .with_html(EMBEDDED_CHROME_HTML)
+                .with_html(EMBEDDED_CHROME_HTML.as_str())
+                .with_transparent(true)
+                .with_background_color((24, 24, 32, 255))
                 .with_ipc_handler(move |req: wry::http::Request<String>| {
                     if let Ok(msg) = serde_json::from_str::<UiToHostMessage>(req.body()) {
                         let _ = proxy_ipc.send_event(BrowserEvent::Ipc(msg));
@@ -369,6 +380,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
 
             // 2. Create initial active tab with Fluent Home Screen
             self.handle_create_tab(None);
+
+            // 3. Make window visible now that webviews are initialized (eliminates white flashing)
+            window.set_visible(true);
         }
     }
 
@@ -423,6 +437,13 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                 }
+                UiToHostMessage::MenuToggled { open } => {
+                    if let Some(chrome) = &self.chrome_webview {
+                        let height = if open { 260.0 } else { CHROME_HEIGHT };
+                        let chrome_bounds = create_bounds(0.0, 0.0, self.window_width, height);
+                        let _ = chrome.set_bounds(chrome_bounds);
+                    }
+                }
                 UiToHostMessage::OpenDevTools => {
                     if let Some(active) = self.tab_manager.active_tab() {
                         if let Some(wv) = self.tabs.get(&active.id) {
@@ -471,10 +492,17 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 self.sync_ui_state();
             }
             BrowserEvent::TabNavigated(tab_id, url) => {
+                if url.starts_with("data:text/html") {
+                    return;
+                }
                 self.tab_manager.update_url(tab_id, url.clone());
                 if let Some(host) = extract_host(&url) {
                     self.tab_manager.update_favicon(tab_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
                 }
+                self.sync_ui_state();
+            }
+            BrowserEvent::HistoryChanged(tab_id, can_back, can_forward) => {
+                self.tab_manager.update_history_state(tab_id, can_back, can_forward);
                 self.sync_ui_state();
             }
             BrowserEvent::CommandDone(name, success, output) => {

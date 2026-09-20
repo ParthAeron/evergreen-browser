@@ -152,6 +152,13 @@ impl TabManager {
         }
     }
 
+    pub fn update_history_state(&mut self, id: TabId, can_go_back: bool, can_go_forward: bool) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.can_go_back = can_go_back;
+            tab.can_go_forward = can_go_forward;
+        }
+    }
+
     pub fn pop_last_closed(&mut self) -> Option<String> {
         self.closed_history.pop()
     }

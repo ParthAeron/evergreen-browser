@@ -1,8 +1,11 @@
 //! Default Home Screen (New Tab Page) for Evergreen Browser
 //! Styled in Direction 01 — Fluent Desktop (WinUI 3 / Edge Dev minimal).
 //! Clean start page with search input and zero clutter (no quick link tiles).
+//! Uses official project logo with transparent background.
 
-pub const HOME_HTML: &str = r#"<!DOCTYPE html>
+pub const LOGO_BASE64: &str = include_str!("../ui/logo.b64");
+
+pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -45,7 +48,7 @@ pub const HOME_HTML: &str = r#"<!DOCTYPE html>
       align-items: center;
       max-width: 640px;
       width: 100%;
-      margin-top: 60px;
+      margin-top: 50px;
     }
 
     /* Logo & Branding */
@@ -53,26 +56,16 @@ pub const HOME_HTML: &str = r#"<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-bottom: 40px;
+      margin-bottom: 36px;
     }
 
-    .brand-icon {
-      width: 68px;
-      height: 68px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, rgba(52, 211, 153, 0.2) 0%, rgba(78, 140, 255, 0.2) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 18px;
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-    }
-
-    .brand-icon svg {
-      width: 38px;
-      height: 38px;
-      color: var(--accent-green);
+    .brand-logo {
+      width: 88px;
+      height: 80px;
+      object-fit: contain;
+      background: transparent;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 8px 24px rgba(52, 211, 153, 0.25));
     }
 
     .brand-title {
@@ -171,12 +164,7 @@ pub const HOME_HTML: &str = r#"<!DOCTYPE html>
 <body>
   <div class="main-content">
     <div class="brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2L4 12h5l-4 8h14l-4-8h5L12 2z"/>
-          <path d="M12 20v2"/>
-        </svg>
-      </div>
+      <img src="data:image/png;base64,{{LOGO_BASE64}}" class="brand-logo" alt="Evergreen" />
       <h1 class="brand-title">Evergreen</h1>
       <div class="brand-badges">
         <span class="badge ephemeral">Ephemeral Mode Active</span>
@@ -228,3 +216,9 @@ pub const HOME_HTML: &str = r#"<!DOCTYPE html>
 </body>
 </html>
 "#;
+
+pub fn get_home_html() -> String {
+    HOME_TEMPLATE.replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+}
+
+pub static HOME_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(get_home_html);

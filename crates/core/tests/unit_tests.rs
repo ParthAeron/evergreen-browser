@@ -91,6 +91,7 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::Stop,
         UiToHostMessage::OpenDevTools,
         UiToHostMessage::OpenMenu { x: 100.0, y: 50.0 },
+        UiToHostMessage::MenuToggled { open: true },
         UiToHostMessage::OpenSettings,
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
         UiToHostMessage::RunEngineUpdate,

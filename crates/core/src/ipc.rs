@@ -26,6 +26,8 @@ pub enum UiToHostMessage {
     OpenDevTools,
     /// Open the native 3-dot popup menu at given coordinates
     OpenMenu { x: f64, y: f64 },
+    /// Notify host that HTML 3-dot menu was opened or closed (for dynamic height expansion)
+    MenuToggled { open: bool },
     /// Settings actions
     OpenSettings,
     SaveSettings { settings_json: String },

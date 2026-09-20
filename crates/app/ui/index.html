@@ -29,15 +29,14 @@
     }
 
     body {
-      background-color: var(--bg-chrome);
+      background: transparent;
       color: var(--text-main);
       font-family: var(--font-family);
       font-size: 13px;
-      overflow: hidden;
-      height: 76px;
+      overflow: visible;
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      border-bottom: 1px solid var(--border-subtle);
     }
 
     svg {
@@ -46,6 +45,18 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
+    }
+
+    /* Top Chrome Bar (Fixed 76px Header) */
+    .chrome-topbar {
+      height: 76px;
+      background-color: var(--bg-chrome);
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+      z-index: 10;
+      flex-shrink: 0;
     }
 
     /* Tab Strip */
@@ -252,59 +263,152 @@
       border-color: var(--border-focus);
       background: var(--bg-omnibox-focus);
     }
+
+    /* WinUI 3 Fluent Floating Menu Dropdown */
+    .fluent-menu-card {
+      position: absolute;
+      top: 72px;
+      right: 8px;
+      width: 220px;
+      background: #20202a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+      padding: 6px;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .fluent-menu-card.open {
+      display: flex;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+
+    .menu-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .menu-item svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .menu-item:hover svg {
+      color: var(--text-main);
+    }
+
+    .menu-label {
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .menu-shortcut {
+      font-size: 11px;
+      color: #78788a;
+      font-family: inherit;
+    }
+
+    .menu-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 4px 6px;
+    }
   </style>
 </head>
 <body>
-  <!-- Tab Strip -->
-  <div class="tab-strip" id="tabStrip" role="tablist" aria-label="Browser tabs">
-    <div id="tabsContainer"></div>
-    <button class="new-tab-btn" onclick="createNewTab()" title="New Tab" aria-label="New Tab">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
-  </div>
-
-  <!-- Navigation Bar -->
-  <div class="nav-bar">
-    <button class="nav-btn" id="btnBack" onclick="sendAction('GoBack')" title="Back" aria-label="Back">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-    </button>
-    <button class="nav-btn" id="btnForward" onclick="sendAction('GoForward')" title="Forward" aria-label="Forward">
-      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-    </button>
-    <button class="nav-btn" id="btnReload" onclick="sendAction('Reload')" title="Reload" aria-label="Reload">
-      <svg viewBox="0 0 24 24">
-        <path d="M21 2v6h-6"/>
-        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-        <path d="M3 22v-6h6"/>
-        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-      </svg>
-    </button>
-
-    <div class="omnibox-container">
-      <div class="omnibox-icon">
-        <svg viewBox="0 0 24 24">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <input
-        type="text"
-        class="omnibox"
-        id="omnibox"
-        placeholder="Search DuckDuckGo or enter address"
-        aria-label="Address and search bar"
-        onkeydown="handleOmniboxKey(event)"
-      />
+  <!-- Top Chrome Bar -->
+  <div class="chrome-topbar">
+    <!-- Tab Strip -->
+    <div class="tab-strip" id="tabStrip" role="tablist" aria-label="Browser tabs">
+      <div id="tabsContainer"></div>
+      <button class="new-tab-btn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New Tab">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </div>
 
-    <!-- 3-Dot Menu Toggle (Triggers native Win32 popup menu via IPC to eliminate airspace clipping) -->
-    <button class="nav-btn" id="btnMenu" onclick="triggerNativeMenu(event)" title="Menu" aria-label="Menu">
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="1.5"/>
-        <circle cx="12" cy="5" r="1.5"/>
-        <circle cx="12" cy="19" r="1.5"/>
-      </svg>
-    </button>
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+      <button class="nav-btn" id="btnBack" onclick="sendAction('GoBack')" disabled title="Back (Alt+Left)" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <button class="nav-btn" id="btnForward" onclick="sendAction('GoForward')" disabled title="Forward (Alt+Right)" aria-label="Forward">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <button class="nav-btn" id="btnReload" onclick="sendAction('Reload')" title="Reload (Ctrl+R / F5)" aria-label="Reload">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 2v6h-6"/>
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+          <path d="M3 22v-6h6"/>
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+      </button>
+
+      <div class="omnibox-container">
+        <div class="omnibox-icon">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <input
+          type="text"
+          class="omnibox"
+          id="omnibox"
+          placeholder="Search DuckDuckGo or enter address"
+          aria-label="Address and search bar"
+          onkeydown="handleOmniboxKey(event)"
+        />
+      </div>
+
+      <!-- 3-Dot Menu Toggle -->
+      <button class="nav-btn" id="btnMenu" onclick="toggleMenu(event)" title="Menu" aria-label="Menu">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="1.5"/>
+          <circle cx="12" cy="5" r="1.5"/>
+          <circle cx="12" cy="19" r="1.5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- WinUI 3 Fluent Floating Menu Dropdown -->
+  <div class="fluent-menu-card" id="menuDropdown">
+    <div class="menu-item" onclick="menuAction('CreateTab')">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <span class="menu-label">New tab</span>
+      <span class="menu-shortcut">Ctrl+T</span>
+    </div>
+    <div class="menu-item" onclick="menuAction('OpenNewWindow')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+      <span class="menu-label">New window</span>
+      <span class="menu-shortcut">Ctrl+N</span>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" onclick="menuAction('OpenDevTools')">
+      <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span class="menu-label">Developer tools</span>
+      <span class="menu-shortcut">F12</span>
+    </div>
+    <div class="menu-item" onclick="menuAction('OpenSettings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="menu-label">Settings</span>
+    </div>
   </div>
 
   <script>
@@ -346,12 +450,45 @@
       }
     }
 
-    function triggerNativeMenu(e) {
-      e.stopPropagation();
-      const rect = document.getElementById('btnMenu').getBoundingClientRect();
-      // Pass coordinates to host so native Windows menu opens right below button
-      postIpc('OpenMenu', { x: rect.right, y: rect.bottom });
+    function toggleMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('menuDropdown');
+      const willOpen = !menu.classList.contains('open');
+      if (willOpen) {
+        menu.classList.add('open');
+      } else {
+        menu.classList.remove('open');
+      }
+      postIpc('MenuToggled', { open: willOpen });
     }
+
+    function closeMenu() {
+      const menu = document.getElementById('menuDropdown');
+      if (menu.classList.contains('open')) {
+        menu.classList.remove('open');
+        postIpc('MenuToggled', { open: false });
+      }
+    }
+
+    function menuAction(action) {
+      closeMenu();
+      if (action === 'CreateTab') {
+        createNewTab();
+      } else if (action === 'OpenSettings') {
+        postIpc('CreateTab', { url: 'evergreen://settings' });
+      } else {
+        postIpc(action);
+      }
+    }
+
+    // Dismiss dropdown when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('menuDropdown');
+      const btn = document.getElementById('btnMenu');
+      if (menu.classList.contains('open') && !menu.contains(e.target) && !btn.contains(e.target)) {
+        closeMenu();
+      }
+    });
 
     // Window interface called by Rust host via evaluate_script
     window.__shellUpdate = function(msg) {
@@ -375,7 +512,7 @@
       });
 
       // Smooth DOM diffing & updating
-      state.tabs.forEach((tab, index) => {
+      state.tabs.forEach((tab) => {
         let tabEl = document.getElementById('tab-' + tab.id);
         const isActive = (tab.id === state.active_tab_id);
 
@@ -422,8 +559,9 @@
         // Update Favicon source
         const iconEl = tabEl.querySelector('.tab-favicon');
         if (iconEl) {
-          if (tab.url.startsWith('evergreen://newtab')) {
-            iconEl.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2L4 12h5l-4 8h14l-4-8h5L12 2z'/%3E%3Cpath d='M12 20v2'/%3E%3C/svg%3E";
+          if (tab.url.startsWith('evergreen://newtab') || tab.url === 'about:blank') {
+            // Official transparent logo favicon
+            iconEl.src = "data:image/png;base64,{{LOGO_BASE64}}";
             iconEl.style.display = 'block';
           } else if (tab.url.startsWith('evergreen://settings')) {
             iconEl.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239595a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E%3C/svg%3E";
@@ -453,10 +591,13 @@
         if (isActive) {
           const omnibox = document.getElementById('omnibox');
           if (document.activeElement !== omnibox) {
-            // Requirement 3: Full URL path always visible
-            omnibox.value = tab.url;
+            // Requirement 3: Full URL path always visible, never raw base64 data URLs
+            if (!tab.url.startsWith('data:text/html')) {
+              omnibox.value = tab.url;
+            }
           }
 
+          // Requirement 1: Back/Forward enable states
           document.getElementById('btnBack').disabled = !tab.can_go_back;
           document.getElementById('btnForward').disabled = !tab.can_go_forward;
         }

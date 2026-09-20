@@ -115,8 +115,46 @@ pub fn attach_accelerator_keys(
     let _ = unsafe { controller.add_AcceleratorKeyPressed(&handler, &mut token) };
 }
 
+#[cfg(target_os = "windows")]
+pub fn attach_history_handler(
+    webview: &WebView,
+    tab_id: evergreen_core::tabs::TabId,
+    proxy: EventLoopProxy<crate::BrowserEvent>,
+) {
+    use webview2_com::HistoryChangedEventHandler;
+    use wry::WebViewExtWindows;
+
+    if let Ok(core) = unsafe { webview.controller().CoreWebView2() } {
+        let core_clone = core.clone();
+        let proxy_clone = proxy.clone();
+        let handler = HistoryChangedEventHandler::create(Box::new(move |_sender, _args| {
+            let mut can_back = windows::core::BOOL(0);
+            let mut can_forward = windows::core::BOOL(0);
+            unsafe {
+                let _ = core_clone.CanGoBack(&mut can_back);
+                let _ = core_clone.CanGoForward(&mut can_forward);
+            }
+            let _ = proxy_clone.send_event(crate::BrowserEvent::HistoryChanged(
+                tab_id,
+                can_back.as_bool(),
+                can_forward.as_bool(),
+            ));
+            Ok(())
+        }));
+        let mut token = Default::default();
+        let _ = unsafe { core.add_HistoryChanged(&handler, &mut token) };
+    }
+}
+
 #[cfg(not(target_os = "windows"))]
 pub fn attach_accelerator_keys(
     _webview: &WebView,
+    _proxy: EventLoopProxy<crate::BrowserEvent>,
+) {}
+
+#[cfg(not(target_os = "windows"))]
+pub fn attach_history_handler(
+    _webview: &WebView,
+    _tab_id: evergreen_core::tabs::TabId,
     _proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {}
