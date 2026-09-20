@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Inspect the host Windows system for WebView2 Runtime installation without requiring COM initialization.
 pub fn detect_webview2_runtime() -> Option<String> {
