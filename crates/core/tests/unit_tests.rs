@@ -98,6 +98,7 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::OpenCertificateDialog { host: "github.com".to_string() },
         UiToHostMessage::PageNavigated { url: "https://test.com".to_string(), title: "Test".to_string() },
         UiToHostMessage::OpenSettings,
+        UiToHostMessage::SetSearchEngine { engine: "google".to_string() },
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
         UiToHostMessage::RunEngineUpdate,
         UiToHostMessage::RunForkUpdate,
@@ -152,6 +153,9 @@ fn test_ipc_serde_host_to_ui_all_variants() {
             version: "153.0.4234.32".to_string(),
             is_update_available: false,
         },
+        HostToUiMessage::SearchEngineSync {
+            engine: "google".to_string(),
+        },
     ];
 
     for msg in variants {
@@ -167,10 +171,44 @@ fn test_settings_default_and_roundtrip() {
     let settings = Settings::default();
     assert!(settings.privacy.ephemeral_default);
     assert_eq!(settings.performance.sleep_after_secs, 300);
+    assert_eq!(settings.search_engine, "duckduckgo");
+    assert_eq!(settings.search_url_template(), "https://duckduckgo.com/?q=%s");
 
     let serialized = serde_json::to_string_pretty(&settings).expect("Serialization failed");
     let deserialized: Settings = serde_json::from_str(&serialized).expect("Deserialization failed");
     assert_eq!(settings, deserialized);
+}
+
+#[test]
+fn test_search_engine_templates() {
+    let mut s = Settings::default();
+    s.search_engine = "google".to_string();
+    assert_eq!(s.search_url_template(), "https://www.google.com/search?q=%s");
+    assert_eq!(s.search_engine_display_name(), "Google");
+
+    s.search_engine = "bing".to_string();
+    assert_eq!(s.search_url_template(), "https://www.bing.com/search?q=%s");
+
+    s.search_engine = "brave".to_string();
+    assert_eq!(s.search_url_template(), "https://search.brave.com/search?q=%s");
+
+    s.search_engine = "ecosia".to_string();
+    assert_eq!(s.search_url_template(), "https://www.ecosia.org/search?q=%s");
+}
+
+#[test]
+fn test_tab_manager_suspension_and_audio() {
+    let mut tm = TabManager::new();
+    let tab_id = tm.create_tab("https://example.com", 1000);
+
+    tm.set_audio_playing(tab_id, true);
+    assert!(tm.tabs()[0].is_audio_playing);
+
+    tm.set_tab_suspended(tab_id, true);
+    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Suspended);
+
+    tm.set_tab_suspended(tab_id, false);
+    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Inactive);
 }
 
 #[test]

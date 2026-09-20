@@ -55,8 +55,28 @@ pub fn attach_accelerator_keys(
                                 shortcut = Some("Ctrl+L");
                                 handled = true;
                             }
+                            0x45 => { // 'E'
+                                shortcut = Some("Ctrl+E");
+                                handled = true;
+                            }
+                            0x4B => { // 'K'
+                                shortcut = Some("Ctrl+K");
+                                handled = true;
+                            }
+                            0x46 => { // 'F'
+                                shortcut = Some("Ctrl+F");
+                                handled = true;
+                            }
+                            0x50 => { // 'P'
+                                shortcut = Some("Ctrl+P");
+                                handled = true;
+                            }
                             0x52 => { // 'R'
-                                shortcut = Some("Ctrl+R");
+                                if shift {
+                                    shortcut = Some("Ctrl+Shift+R");
+                                } else {
+                                    shortcut = Some("Ctrl+R");
+                                }
                                 handled = true;
                             }
                             0x4E => { // 'N'
@@ -69,6 +89,27 @@ pub fn attach_accelerator_keys(
                                 } else {
                                     shortcut = Some("Ctrl+Tab");
                                 }
+                                handled = true;
+                            }
+                            0x31 => { shortcut = Some("Ctrl+1"); handled = true; }
+                            0x32 => { shortcut = Some("Ctrl+2"); handled = true; }
+                            0x33 => { shortcut = Some("Ctrl+3"); handled = true; }
+                            0x34 => { shortcut = Some("Ctrl+4"); handled = true; }
+                            0x35 => { shortcut = Some("Ctrl+5"); handled = true; }
+                            0x36 => { shortcut = Some("Ctrl+6"); handled = true; }
+                            0x37 => { shortcut = Some("Ctrl+7"); handled = true; }
+                            0x38 => { shortcut = Some("Ctrl+8"); handled = true; }
+                            0x39 => { shortcut = Some("Ctrl+9"); handled = true; }
+                            0xBB | 0x6B => { // '+' or Numpad '+'
+                                shortcut = Some("Ctrl+Plus");
+                                handled = true;
+                            }
+                            0xBD | 0x6D => { // '-' or Numpad '-'
+                                shortcut = Some("Ctrl+Minus");
+                                handled = true;
+                            }
+                            0x30 | 0x60 => { // '0' or Numpad '0'
+                                shortcut = Some("Ctrl+Zero");
                                 handled = true;
                             }
                             _ => {}
@@ -93,6 +134,10 @@ pub fn attach_accelerator_keys(
                             }
                             0x74 => { // F5
                                 shortcut = Some("F5");
+                                handled = true;
+                            }
+                            0x1B => { // Escape
+                                shortcut = Some("Escape");
                                 handled = true;
                             }
                             _ => {}
@@ -209,6 +254,26 @@ pub fn attach_navigation_events(
         }));
         let mut token_t = Default::default();
         let _ = unsafe { core.add_DocumentTitleChanged(&title_handler, &mut token_t) };
+
+        // 4. New Window Requested (target="_blank" link clicks, e.g. Garry Tan YC profile)
+        let proxy_new_win = proxy.clone();
+        let new_window_handler = webview2_com::NewWindowRequestedEventHandler::create(Box::new(move |_sender, args| {
+            if let Some(args) = args {
+                let mut uri_pwstr = windows::core::PWSTR::null();
+                if unsafe { args.Uri(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
+                    let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
+                    if !uri_str.is_empty() {
+                        let _ = unsafe { args.SetHandled(true) };
+                        let _ = proxy_new_win.send_event(crate::BrowserEvent::Ipc(
+                            evergreen_core::ipc::UiToHostMessage::CreateTab { url: Some(uri_str) },
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        }));
+        let mut token_nw = Default::default();
+        let _ = unsafe { core.add_NewWindowRequested(&new_window_handler, &mut token_nw) };
     }
 }
 

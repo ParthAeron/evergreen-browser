@@ -12,6 +12,8 @@ pub struct Settings {
     pub performance: PerformanceSettings,
     /// Appearance and UI theming
     pub appearance: AppearanceSettings,
+    /// Default search engine ("duckduckgo", "google", "bing", "brave", "ecosia")
+    pub search_engine: String,
     /// Download behavior
     pub downloads: DownloadSettings,
     /// App update commands
@@ -89,6 +91,7 @@ impl Default for Settings {
                 theme: "system".to_string(),
                 density: "comfortable".to_string(),
             },
+            search_engine: "duckduckgo".to_string(),
             downloads: DownloadSettings {
                 ask_where_to_save: false,
                 default_folder: default_download_dir,
@@ -97,6 +100,28 @@ impl Default for Settings {
                 auto_check_app_updates: false,
                 fork_update_command: "git pull && cargo build --release".to_string(),
             },
+        }
+    }
+}
+
+impl Settings {
+    pub fn search_url_template(&self) -> &'static str {
+        match self.search_engine.to_lowercase().as_str() {
+            "google" => "https://www.google.com/search?q=%s",
+            "bing" => "https://www.bing.com/search?q=%s",
+            "brave" => "https://search.brave.com/search?q=%s",
+            "ecosia" => "https://www.ecosia.org/search?q=%s",
+            _ => "https://duckduckgo.com/?q=%s",
+        }
+    }
+
+    pub fn search_engine_display_name(&self) -> &'static str {
+        match self.search_engine.to_lowercase().as_str() {
+            "google" => "Google",
+            "bing" => "Bing",
+            "brave" => "Brave",
+            "ecosia" => "Ecosia",
+            _ => "DuckDuckGo",
         }
     }
 }

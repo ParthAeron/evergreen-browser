@@ -167,11 +167,6 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
     <div class="brand">
       <img src="data:image/png;base64,{{LOGO_BASE64}}" class="brand-logo" alt="Evergreen" />
       <h1 class="brand-title">Evergreen</h1>
-      <div class="brand-badges">
-        <span class="badge ephemeral">Ephemeral Mode Active</span>
-        <span class="badge">Native Rust Shell</span>
-        <span class="badge">WebView2 Evergreen</span>
-      </div>
     </div>
 
     <!-- Search / Address input -->
@@ -184,21 +179,21 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
         type="text"
         class="search-box"
         id="homeSearch"
-        placeholder="Search DuckDuckGo or enter web address..."
+        placeholder="Search {{SEARCH_ENGINE_NAME}} or enter web address..."
         autocomplete="off"
         autofocus
       />
-      <span class="search-engine-badge">DuckDuckGo</span>
+      <span class="search-engine-badge">{{SEARCH_ENGINE_NAME}}</span>
     </div>
   </div>
 
   <footer class="footer">
-    <span>Evergreen Browser · Ephemeral Zero-Footprint Navigation</span>
-    <span>Powered by Microsoft WebView2 & Rust</span>
+    <span>Evergreen Browser</span>
   </footer>
 
   <script>
     const searchBox = document.getElementById('homeSearch');
+    const searchTemplate = "{{SEARCH_ENGINE_URL}}";
     searchBox.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const query = searchBox.value.trim();
@@ -209,7 +204,7 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
         } else if (query.includes('.') && !query.includes(' ')) {
           window.location.href = 'https://' + query;
         } else {
-          window.location.href = 'https://duckduckgo.com/?q=' + encodeURIComponent(query);
+          window.location.href = searchTemplate.replace('%s', encodeURIComponent(query));
         }
       }
     });
@@ -218,8 +213,9 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
 </html>
 "#;
 
-pub fn get_home_html() -> String {
-    HOME_TEMPLATE.replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+pub fn get_home_html(search_name: &str, search_url: &str) -> String {
+    HOME_TEMPLATE
+        .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+        .replace("{{SEARCH_ENGINE_NAME}}", search_name)
+        .replace("{{SEARCH_ENGINE_URL}}", search_url)
 }
-
-pub static HOME_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(get_home_html);

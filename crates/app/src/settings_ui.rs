@@ -186,6 +186,23 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       border: 1px solid rgba(78, 140, 255, 0.3);
       color: #93c5fd;
     }
+
+    .select-box {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .select-box option {
+      background: #1e1e28;
+      color: var(--text-main);
+    }
   </style>
 </head>
 <body>
@@ -213,6 +230,25 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <button class="btn" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Search & Navigation</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Default Search Engine</span>
+          <span class="row-desc">Used when searching directly from the address bar or start page</span>
+        </div>
+        <div class="row-action">
+          <select id="searchEngineSelect" class="select-box" onchange="onSearchEngineChange(this.value)">
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+            <option value="brave">Brave Search</option>
+            <option value="ecosia">Ecosia</option>
+          </select>
         </div>
       </div>
     </div>
@@ -285,6 +321,20 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       setTimeout(() => banner.classList.remove('show'), 4000);
     }
 
+    function onSearchEngineChange(engine) {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({ action: 'SetSearchEngine', payload: { engine: engine } }));
+        showStatus('Default search engine set to ' + engine);
+      }
+    }
+
+    window.__syncSearchEngine = function(engine) {
+      const select = document.getElementById('searchEngineSelect');
+      if (select && engine) {
+        select.value = engine.toLowerCase();
+      }
+    };
+
     window.__syncEngineInfo = function(version) {
       const el = document.getElementById('engineVersion');
       if (el) el.textContent = version || 'v153.0.4234.32 (Active)';
@@ -299,12 +349,14 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 </html>
 "#;
 
-pub fn get_settings_html(runtime_ver: &str) -> String {
-    SETTINGS_TEMPLATE
+pub fn get_settings_html(runtime_ver: &str, current_engine: &str) -> String {
+    let mut html = SETTINGS_TEMPLATE
         .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
-        .replace("Detecting...", &format!("v{} (Active)", runtime_ver))
-}
+        .replace("Detecting...", &format!("v{} (Active)", runtime_ver));
 
-pub static SETTINGS_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-    get_settings_html("Detecting...")
-});
+    let engine = current_engine.to_lowercase();
+    let target = format!("value=\"{}\"", engine);
+    let replacement = format!("value=\"{}\" selected", engine);
+    html = html.replace(&target, &replacement);
+    html
+}

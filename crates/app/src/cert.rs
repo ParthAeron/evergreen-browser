@@ -156,7 +156,7 @@ pub fn open_native_certificate_dialog(host: &str) {
     let host_owned = host.to_string();
     std::thread::spawn(move || {
         let script = format!(
-            "$h='{}'; try {{ \
+            "Add-Type -AssemblyName System.Security; $h='{}'; try {{ \
                 $tcp = New-Object System.Net.Sockets.TcpClient($h, 443); \
                 $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({{$true}})); \
                 $ssl.AuthenticateAsClient($h); \

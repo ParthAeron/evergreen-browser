@@ -40,6 +40,7 @@ pub enum UiToHostMessage {
     PageNavigated { url: String, title: String },
     /// Settings actions
     OpenSettings,
+    SetSearchEngine { engine: String },
     SaveSettings { settings_json: String },
     RunEngineUpdate,
     RunForkUpdate,
@@ -114,5 +115,9 @@ pub enum HostToUiMessage {
     EngineInfoSync {
         version: String,
         is_update_available: bool,
+    },
+    /// Default search engine sync
+    SearchEngineSync {
+        engine: String,
     },
 }
