@@ -34,6 +34,10 @@ pub enum UiToHostMessage {
     ToggleSecurityPanel,
     /// Request closing the sidebar panel
     CloseSidebar,
+    /// Open the native Windows certificate dialog for the given host
+    OpenCertificateDialog { host: String },
+    /// Real-time client-side lifecycle navigation event (e.g. bfcache, popstate, pushState)
+    PageNavigated { url: String, title: String },
     /// Settings actions
     OpenSettings,
     SaveSettings { settings_json: String },
@@ -49,6 +53,32 @@ pub struct SecurityInfo {
     pub protocol: String,
     pub certificate_status: String,
     pub cipher: String,
+    pub subject: String,
+    pub issuer: String,
+    pub valid_from: String,
+    pub valid_to: String,
+    pub thumbprint: String,
+    pub serial_number: String,
+    pub signature_algorithm: String,
+}
+
+impl Default for SecurityInfo {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            is_secure: false,
+            protocol: "Unknown".to_string(),
+            certificate_status: "Unknown".to_string(),
+            cipher: "Unknown".to_string(),
+            subject: String::new(),
+            issuer: String::new(),
+            valid_from: String::new(),
+            valid_to: String::new(),
+            thumbprint: String::new(),
+            serial_number: String::new(),
+            signature_algorithm: String::new(),
+        }
+    }
 }
 
 /// Strongly-typed state events sent from Rust host to Chrome UI (JS).
@@ -64,7 +94,7 @@ pub enum HostToUiMessage {
     SidebarStateSync {
         open: bool,
         mode: String,
-        security_info: Option<SecurityInfo>,
+        security_info: Option<Box<SecurityInfo>>,
     },
     /// Active tab URL / navigation update
     NavigationUpdated {

@@ -6,6 +6,7 @@ mod accelerator;
 mod settings_ui;
 mod home_ui;
 mod sidebar_ui;
+mod cert;
 
 use chrome::{create_bounds, normalize_url, CHROME_HEIGHT, EMBEDDED_CHROME_HTML};
 use evergreen_core::env::{detect_webview2_runtime, is_process_elevated};
@@ -21,6 +22,46 @@ use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 use winit::window::{Window, WindowId};
 use wry::{WebView, WebViewBuilder};
+
+const NAV_WATCHER_SCRIPT: &str = r#"
+(() => {
+  let lastUrl = location.href;
+  let lastTitle = document.title;
+  function notifyNav() {
+    const curUrl = location.href;
+    const curTitle = document.title;
+    if (curUrl !== lastUrl || (curTitle && curTitle !== lastTitle)) {
+      lastUrl = curUrl;
+      lastTitle = curTitle;
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({
+          action: 'PageNavigated',
+          payload: { url: curUrl, title: curTitle }
+        }));
+      }
+    }
+  }
+  window.addEventListener('popstate', () => { setTimeout(notifyNav, 0); setTimeout(notifyNav, 50); });
+  window.addEventListener('pageshow', () => { setTimeout(notifyNav, 0); setTimeout(notifyNav, 50); });
+  window.addEventListener('hashchange', () => { setTimeout(notifyNav, 0); });
+  const origPush = history.pushState;
+  history.pushState = function() {
+    origPush.apply(this, arguments);
+    setTimeout(notifyNav, 0);
+  };
+  const origReplace = history.replaceState;
+  history.replaceState = function() {
+    origReplace.apply(this, arguments);
+    setTimeout(notifyNav, 0);
+  };
+  if (window.MutationObserver) {
+    const titleEl = document.querySelector('title');
+    if (titleEl) {
+      new MutationObserver(() => notifyNav()).observe(titleEl, { childList: true, characterData: true, subtree: true });
+    }
+  }
+})();
+"#;
 
 #[derive(Debug)]
 enum BrowserEvent {
@@ -40,6 +81,7 @@ struct BrowserApp {
     sidebar_webview: Option<WebView>,
     is_sidebar_open: bool,
     sidebar_mode: String,
+    cert_cache: cert::CertificateCache,
     tabs: HashMap<TabId, WebView>,
     runtime_version: String,
     modifiers: ModifiersState,
@@ -57,6 +99,7 @@ impl BrowserApp {
             sidebar_webview: None,
             is_sidebar_open: false,
             sidebar_mode: "menu".to_string(),
+            cert_cache: cert::CertificateCache::new(),
             tabs: HashMap::new(),
             runtime_version,
             modifiers: ModifiersState::default(),
@@ -119,26 +162,12 @@ impl BrowserApp {
         if let Some(sidebar) = &self.sidebar_webview {
             let active = self.tab_manager.active_tab();
             let url = active.map(|t| t.url.clone()).unwrap_or_default();
-            let host = extract_host(&url).unwrap_or_else(|| url.clone());
-            let is_secure = url.starts_with("https://");
-            let (protocol, cert_status, cipher) = if url.starts_with("evergreen://") {
-                ("Local Sandbox Surface".to_string(), "Built-in System Component".to_string(), "Local IPC".to_string())
-            } else if is_secure {
-                ("TLS 1.3".to_string(), "Valid & Verified (System Trusted CA)".to_string(), "256-bit encryption (AES-GCM)".to_string())
-            } else {
-                ("Insecure HTTP".to_string(), "None / Plaintext (Unencrypted)".to_string(), "None".to_string())
-            };
+            let sec_info = self.cert_cache.query_or_default(&url);
 
             let sync_msg = HostToUiMessage::SidebarStateSync {
                 open: self.is_sidebar_open,
                 mode: self.sidebar_mode.clone(),
-                security_info: Some(evergreen_core::ipc::SecurityInfo {
-                    host,
-                    is_secure,
-                    protocol,
-                    certificate_status: cert_status,
-                    cipher,
-                }),
+                security_info: Some(Box::new(sec_info)),
             };
 
             if let Ok(json_str) = serde_json::to_string(&sync_msg) {
@@ -227,6 +256,7 @@ impl BrowserApp {
             .with_incognito(true)
             .with_transparent(true)
             .with_background_color((24, 24, 32, 255))
+            .with_initialization_script(NAV_WATCHER_SCRIPT)
             .with_devtools(true);
 
         // Custom protocol for internal links
@@ -586,6 +616,25 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
                 UiToHostMessage::CloseSidebar => {
                     self.close_sidebar();
+                }
+                UiToHostMessage::OpenCertificateDialog { host } => {
+                    cert::open_native_certificate_dialog(&host);
+                }
+                UiToHostMessage::PageNavigated { url, title } => {
+                    if let Some(active) = self.tab_manager.active_tab() {
+                        let active_id = active.id;
+                        if !url.starts_with("data:text/html") {
+                            self.tab_manager.update_url(active_id, url.clone());
+                            if let Some(host) = extract_host(&url) {
+                                self.tab_manager.update_favicon(active_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                            }
+                        }
+                        if !title.is_empty() {
+                            self.tab_manager.update_title(active_id, title);
+                        }
+                        self.sync_ui_state();
+                        self.update_sidebar_sync();
+                    }
                 }
                 UiToHostMessage::OpenDevTools => {
                     if let Some(active) = self.tab_manager.active_tab() {

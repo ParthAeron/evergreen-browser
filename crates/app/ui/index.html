@@ -556,10 +556,11 @@
         // Update omnibox & navigation buttons for active tab
         if (isActive) {
           const omnibox = document.getElementById('omnibox');
-          // Update URL instantaneously if switching tabs or if URL changed
-          if (isTabSwitch || document.activeElement !== omnibox || !omnibox.value) {
-            if (!tab.url.startsWith('data:text/html')) {
+          // Update URL instantaneously on tab switch or navigation
+          if (!tab.url.startsWith('data:text/html')) {
+            if (isTabSwitch || omnibox.dataset.lastSyncedUrl !== tab.url || document.activeElement !== omnibox) {
               omnibox.value = tab.url;
+              omnibox.dataset.lastSyncedUrl = tab.url;
             }
           }
 

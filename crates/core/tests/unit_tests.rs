@@ -95,6 +95,8 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::ToggleMenuPanel,
         UiToHostMessage::ToggleSecurityPanel,
         UiToHostMessage::CloseSidebar,
+        UiToHostMessage::OpenCertificateDialog { host: "github.com".to_string() },
+        UiToHostMessage::PageNavigated { url: "https://test.com".to_string(), title: "Test".to_string() },
         UiToHostMessage::OpenSettings,
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
         UiToHostMessage::RunEngineUpdate,
@@ -119,13 +121,20 @@ fn test_ipc_serde_host_to_ui_all_variants() {
         HostToUiMessage::SidebarStateSync {
             open: true,
             mode: "security".to_string(),
-            security_info: Some(evergreen_core::ipc::SecurityInfo {
+            security_info: Some(Box::new(evergreen_core::ipc::SecurityInfo {
                 host: "github.com".to_string(),
                 is_secure: true,
                 protocol: "TLS 1.3".to_string(),
                 certificate_status: "Valid & Verified".to_string(),
                 cipher: "256-bit encryption (AES-GCM)".to_string(),
-            }),
+                subject: "CN=github.com".to_string(),
+                issuer: "CN=Sectigo".to_string(),
+                valid_from: "2026-01-01".to_string(),
+                valid_to: "2027-01-01".to_string(),
+                thumbprint: "D3B63E...".to_string(),
+                serial_number: "00A5...".to_string(),
+                signature_algorithm: "sha256ECDSA".to_string(),
+            })),
         },
         HostToUiMessage::NavigationUpdated {
             tab_id: TabId(1),

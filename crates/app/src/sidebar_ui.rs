@@ -296,6 +296,34 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       white-space: nowrap;
     }
 
+    .btn-cert-details {
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: var(--bg-card-hover);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      color: var(--text-main);
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .btn-cert-details:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-focus);
+    }
+
+    .btn-cert-details:active {
+      transform: scale(0.98);
+    }
+
     /* Privacy Guarantee Pill */
     .privacy-pill {
       display: inline-flex;
@@ -403,8 +431,28 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
           <span class="prop-value" id="propHost">example.com</span>
         </div>
         <div class="prop-row">
-          <span class="prop-label">Certificate</span>
+          <span class="prop-label">Status</span>
           <span class="prop-value" id="propCert">Valid (System Verified)</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Issued To</span>
+          <span class="prop-value" id="propSubject">CN=example.com</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Issued By</span>
+          <span class="prop-value" id="propIssuer">DigiCert Global Root</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Validity</span>
+          <span class="prop-value" id="propValid">Active</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Algorithm</span>
+          <span class="prop-value" id="propSigAlg">sha256ECDSA</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Thumbprint</span>
+          <span class="prop-value" id="propThumbprint" style="font-family: monospace; font-size: 11px;">D3B63E...</span>
         </div>
         <div class="prop-row">
           <span class="prop-label">Protocol</span>
@@ -414,6 +462,11 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
           <span class="prop-label">Encryption</span>
           <span class="prop-value" id="propCipher">256-bit AES-GCM</span>
         </div>
+
+        <button class="btn-cert-details" id="btnOpenCertDialog" onclick="openCertificateDialog()">
+          <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          View Certificate Details (Windows Dialog)
+        </button>
       </div>
 
       <!-- Ephemeral Privacy -->
@@ -495,6 +548,11 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
     }
 
+    function openCertificateDialog() {
+      const host = document.getElementById('propHost').textContent;
+      postIpc('OpenCertificateDialog', { host });
+    }
+
     // Called by host to update sidebar data
     window.__sidebarSync = function(msg) {
       if (!msg) return;
@@ -509,6 +567,22 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
         document.getElementById('propCert').textContent = sec.certificate_status || 'Unknown';
         document.getElementById('propProtocol').textContent = sec.protocol || 'Unknown';
         document.getElementById('propCipher').textContent = sec.cipher || 'Standard';
+
+        if (document.getElementById('propSubject')) {
+          document.getElementById('propSubject').textContent = sec.subject || 'None';
+        }
+        if (document.getElementById('propIssuer')) {
+          document.getElementById('propIssuer').textContent = sec.issuer || 'None';
+        }
+        if (document.getElementById('propValid')) {
+          document.getElementById('propValid').textContent = (sec.valid_from && sec.valid_to) ? (sec.valid_from + ' to ' + sec.valid_to) : 'Valid';
+        }
+        if (document.getElementById('propThumbprint')) {
+          document.getElementById('propThumbprint').textContent = sec.thumbprint || 'None';
+        }
+        if (document.getElementById('propSigAlg')) {
+          document.getElementById('propSigAlg').textContent = sec.signature_algorithm || 'None';
+        }
 
         const banner = document.getElementById('securityBanner');
         const icon = document.getElementById('statusIcon');

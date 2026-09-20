@@ -135,6 +135,20 @@ pub fn attach_navigation_events(
                 let _ = core_history.CanGoBack(&mut can_back);
                 let _ = core_history.CanGoForward(&mut can_forward);
             }
+            let mut uri_pwstr = windows::core::PWSTR::null();
+            if unsafe { core_history.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
+                let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
+                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
+                    let _ = proxy_history.send_event(crate::BrowserEvent::TabNavigated(tab_id, uri_str));
+                }
+            }
+            let mut title_pwstr = windows::core::PWSTR::null();
+            if unsafe { core_history.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
+                let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
+                if !title_str.is_empty() {
+                    let _ = proxy_history.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
+                }
+            }
             let _ = proxy_history.send_event(crate::BrowserEvent::HistoryChanged(
                 tab_id,
                 can_back.as_bool(),
@@ -154,6 +168,13 @@ pub fn attach_navigation_events(
                 let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
                 if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
                     let _ = proxy_source.send_event(crate::BrowserEvent::TabNavigated(tab_id, uri_str));
+                }
+            }
+            let mut title_pwstr = windows::core::PWSTR::null();
+            if unsafe { core_source.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
+                let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
+                if !title_str.is_empty() {
+                    let _ = proxy_source.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
                 }
             }
             // Also update history state on source change
