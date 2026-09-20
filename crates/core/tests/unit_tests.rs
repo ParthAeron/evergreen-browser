@@ -92,6 +92,9 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::OpenDevTools,
         UiToHostMessage::OpenMenu { x: 100.0, y: 50.0 },
         UiToHostMessage::MenuToggled { open: true },
+        UiToHostMessage::ToggleMenuPanel,
+        UiToHostMessage::ToggleSecurityPanel,
+        UiToHostMessage::CloseSidebar,
         UiToHostMessage::OpenSettings,
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
         UiToHostMessage::RunEngineUpdate,
@@ -112,6 +115,17 @@ fn test_ipc_serde_host_to_ui_all_variants() {
         HostToUiMessage::TabStateSync {
             tabs: vec![],
             active_tab_id: Some(TabId(1)),
+        },
+        HostToUiMessage::SidebarStateSync {
+            open: true,
+            mode: "security".to_string(),
+            security_info: Some(evergreen_core::ipc::SecurityInfo {
+                host: "github.com".to_string(),
+                is_secure: true,
+                protocol: "TLS 1.3".to_string(),
+                certificate_status: "Valid & Verified".to_string(),
+                cipher: "256-bit encryption (AES-GCM)".to_string(),
+            }),
         },
         HostToUiMessage::NavigationUpdated {
             tab_id: TabId(1),

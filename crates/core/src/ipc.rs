@@ -28,11 +28,27 @@ pub enum UiToHostMessage {
     OpenMenu { x: f64, y: f64 },
     /// Notify host that HTML 3-dot menu was opened or closed (for dynamic height expansion)
     MenuToggled { open: bool },
+    /// Toggle the WinUI 3 slide-out sidebar in Menu mode
+    ToggleMenuPanel,
+    /// Toggle the WinUI 3 slide-out sidebar in Security/Certificate mode
+    ToggleSecurityPanel,
+    /// Request closing the sidebar panel
+    CloseSidebar,
     /// Settings actions
     OpenSettings,
     SaveSettings { settings_json: String },
     RunEngineUpdate,
     RunForkUpdate,
+}
+
+/// Security and certificate status for the active origin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SecurityInfo {
+    pub host: String,
+    pub is_secure: bool,
+    pub protocol: String,
+    pub certificate_status: String,
+    pub cipher: String,
 }
 
 /// Strongly-typed state events sent from Rust host to Chrome UI (JS).
@@ -43,6 +59,12 @@ pub enum HostToUiMessage {
     TabStateSync {
         tabs: Vec<TabState>,
         active_tab_id: Option<TabId>,
+    },
+    /// Sidebar panel state sync
+    SidebarStateSync {
+        open: bool,
+        mode: String,
+        security_info: Option<SecurityInfo>,
     },
     /// Active tab URL / navigation update
     NavigationUpdated {

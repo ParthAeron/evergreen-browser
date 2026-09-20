@@ -1,12 +1,15 @@
 //! Internal Settings Tab for Evergreen Browser
 //! Styled in Direction 01 — Fluent Desktop (WinUI 3 / Edge Dev minimal).
 
-pub const SETTINGS_HTML: &str = r#"<!DOCTYPE html>
+pub const LOGO_BASE64: &str = include_str!("../ui/logo.b64");
+
+pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings - Evergreen</title>
+  <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
   <style>
     :root {
       --bg-surface: #181820;
@@ -295,3 +298,13 @@ pub const SETTINGS_HTML: &str = r#"<!DOCTYPE html>
 </body>
 </html>
 "#;
+
+pub fn get_settings_html(runtime_ver: &str) -> String {
+    SETTINGS_TEMPLATE
+        .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+        .replace("Detecting...", &format!("v{} (Active)", runtime_ver))
+}
+
+pub static SETTINGS_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    get_settings_html("Detecting...")
+});

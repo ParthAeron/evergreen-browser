@@ -116,33 +116,78 @@ pub fn attach_accelerator_keys(
 }
 
 #[cfg(target_os = "windows")]
-pub fn attach_history_handler(
+pub fn attach_navigation_events(
     webview: &WebView,
     tab_id: evergreen_core::tabs::TabId,
     proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {
-    use webview2_com::HistoryChangedEventHandler;
+    use webview2_com::{DocumentTitleChangedEventHandler, HistoryChangedEventHandler, SourceChangedEventHandler};
     use wry::WebViewExtWindows;
 
     if let Ok(core) = unsafe { webview.controller().CoreWebView2() } {
-        let core_clone = core.clone();
-        let proxy_clone = proxy.clone();
-        let handler = HistoryChangedEventHandler::create(Box::new(move |_sender, _args| {
+        // 1. History Changed
+        let core_history = core.clone();
+        let proxy_history = proxy.clone();
+        let history_handler = HistoryChangedEventHandler::create(Box::new(move |_sender, _args| {
             let mut can_back = windows::core::BOOL(0);
             let mut can_forward = windows::core::BOOL(0);
             unsafe {
-                let _ = core_clone.CanGoBack(&mut can_back);
-                let _ = core_clone.CanGoForward(&mut can_forward);
+                let _ = core_history.CanGoBack(&mut can_back);
+                let _ = core_history.CanGoForward(&mut can_forward);
             }
-            let _ = proxy_clone.send_event(crate::BrowserEvent::HistoryChanged(
+            let _ = proxy_history.send_event(crate::BrowserEvent::HistoryChanged(
                 tab_id,
                 can_back.as_bool(),
                 can_forward.as_bool(),
             ));
             Ok(())
         }));
-        let mut token = Default::default();
-        let _ = unsafe { core.add_HistoryChanged(&handler, &mut token) };
+        let mut token_h = Default::default();
+        let _ = unsafe { core.add_HistoryChanged(&history_handler, &mut token_h) };
+
+        // 2. Source Changed (instantaneous URI updates on redirect, SPA pushState, back/forward)
+        let core_source = core.clone();
+        let proxy_source = proxy.clone();
+        let source_handler = SourceChangedEventHandler::create(Box::new(move |_sender, _args| {
+            let mut uri_pwstr = windows::core::PWSTR::null();
+            if unsafe { core_source.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
+                let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
+                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
+                    let _ = proxy_source.send_event(crate::BrowserEvent::TabNavigated(tab_id, uri_str));
+                }
+            }
+            // Also update history state on source change
+            let mut can_back = windows::core::BOOL(0);
+            let mut can_forward = windows::core::BOOL(0);
+            unsafe {
+                let _ = core_source.CanGoBack(&mut can_back);
+                let _ = core_source.CanGoForward(&mut can_forward);
+            }
+            let _ = proxy_source.send_event(crate::BrowserEvent::HistoryChanged(
+                tab_id,
+                can_back.as_bool(),
+                can_forward.as_bool(),
+            ));
+            Ok(())
+        }));
+        let mut token_s = Default::default();
+        let _ = unsafe { core.add_SourceChanged(&source_handler, &mut token_s) };
+
+        // 3. Document Title Changed (instantaneous title updates)
+        let core_title = core.clone();
+        let proxy_title = proxy.clone();
+        let title_handler = DocumentTitleChangedEventHandler::create(Box::new(move |_sender, _args| {
+            let mut title_pwstr = windows::core::PWSTR::null();
+            if unsafe { core_title.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
+                let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
+                if !title_str.is_empty() {
+                    let _ = proxy_title.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
+                }
+            }
+            Ok(())
+        }));
+        let mut token_t = Default::default();
+        let _ = unsafe { core.add_DocumentTitleChanged(&title_handler, &mut token_t) };
     }
 }
 
@@ -153,7 +198,7 @@ pub fn attach_accelerator_keys(
 ) {}
 
 #[cfg(not(target_os = "windows"))]
-pub fn attach_history_handler(
+pub fn attach_navigation_events(
     _webview: &WebView,
     _tab_id: evergreen_core::tabs::TabId,
     _proxy: EventLoopProxy<crate::BrowserEvent>,
