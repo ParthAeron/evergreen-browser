@@ -24,6 +24,8 @@ pub enum UiToHostMessage {
     Stop,
     /// Open DevTools for current tab
     OpenDevTools,
+    /// Open the native 3-dot popup menu at given coordinates
+    OpenMenu { x: f64, y: f64 },
     /// Settings actions
     OpenSettings,
     SaveSettings { settings_json: String },

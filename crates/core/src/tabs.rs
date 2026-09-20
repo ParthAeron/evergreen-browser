@@ -146,6 +146,12 @@ impl TabManager {
         }
     }
 
+    pub fn update_favicon(&mut self, id: TabId, favicon_uri: Option<String>) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.favicon_uri = favicon_uri;
+        }
+    }
+
     pub fn pop_last_closed(&mut self) -> Option<String> {
         self.closed_history.pop()
     }

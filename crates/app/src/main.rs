@@ -70,8 +70,8 @@ impl BrowserApp {
                 tabs: self.tab_manager.tabs().to_vec(),
                 active_tab_id: self.tab_manager.active_tab().map(|t| t.id),
             };
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&sync_msg).unwrap_or_default()) {
-                let script = format!("if (window.__shellUpdate) {{ window.__shellUpdate({}); }}", json);
+            if let Ok(json_str) = serde_json::to_string(&sync_msg) {
+                let script = format!("if (window.__shellUpdate) {{ window.__shellUpdate({}); }}", json_str);
                 let _ = chrome.evaluate_script(&script);
             }
         }
@@ -91,37 +91,57 @@ impl BrowserApp {
         let proxy_ipc = self.proxy.clone();
 
         let runtime_ver = self.runtime_version.clone();
+        let is_newtab = url.starts_with("evergreen://newtab") || url == "about:blank";
+        let is_settings = url.starts_with("evergreen://settings");
 
-        let webview = WebViewBuilder::new()
+        let mut builder = WebViewBuilder::new()
             .with_bounds(bounds)
-            .with_custom_protocol("evergreen".into(), move |_webview_id, request| {
-                let host = request.uri().host().unwrap_or("");
-                let path = request.uri().path();
-                if host == "newtab" || host == "home" || path == "/newtab" || path == "/home" || path == "newtab" || path == "home" {
-                    wry::http::Response::builder()
-                        .header("Content-Type", "text/html; charset=utf-8")
-                        .body(std::borrow::Cow::Borrowed(home_ui::HOME_HTML.as_bytes()))
-                        .unwrap()
-                } else if host == "settings" || path == "/settings" || path == "settings" {
-                    let html = settings_ui::SETTINGS_HTML.replace("Detecting...", &format!("v{} (Active)", runtime_ver));
-                    wry::http::Response::builder()
-                        .header("Content-Type", "text/html; charset=utf-8")
-                        .body(std::borrow::Cow::Owned(html.into_bytes()))
-                        .unwrap()
-                } else {
-                    wry::http::Response::builder()
-                        .status(404)
-                        .body(std::borrow::Cow::Borrowed(&b"Not Found"[..]))
-                        .unwrap()
-                }
-            })
-            .with_url(url)
             .with_incognito(true)
-            .with_devtools(true)
+            .with_devtools(true);
+
+        // Custom protocol for internal links
+        builder = builder.with_custom_protocol("evergreen".into(), move |_webview_id, request| {
+            let host = request.uri().host().unwrap_or("");
+            let path = request.uri().path();
+            if host == "newtab" || host == "home" || path == "/newtab" || path == "/home" || path == "newtab" || path == "home" {
+                wry::http::Response::builder()
+                    .header("Content-Type", "text/html; charset=utf-8")
+                    .body(std::borrow::Cow::Borrowed(home_ui::HOME_HTML.as_bytes()))
+                    .unwrap()
+            } else if host == "settings" || path == "/settings" || path == "settings" {
+                let html = settings_ui::SETTINGS_HTML.replace("Detecting...", &format!("v{} (Active)", runtime_ver));
+                wry::http::Response::builder()
+                    .header("Content-Type", "text/html; charset=utf-8")
+                    .body(std::borrow::Cow::Owned(html.into_bytes()))
+                    .unwrap()
+            } else {
+                wry::http::Response::builder()
+                    .status(404)
+                    .body(std::borrow::Cow::Borrowed(&b"Not Found"[..]))
+                    .unwrap()
+            }
+        });
+
+        // Load internal pages directly via with_html for instantaneous rendering
+        if is_newtab {
+            builder = builder.with_html(home_ui::HOME_HTML);
+        } else if is_settings {
+            let html = settings_ui::SETTINGS_HTML.replace("Detecting...", &format!("v{} (Active)", self.runtime_version));
+            builder = builder.with_html(html);
+        } else {
+            builder = builder.with_url(url);
+        }
+
+        let proxy_nav_interceptor = self.proxy.clone();
+        let webview = builder
             .with_document_title_changed_handler(move |title: String| {
                 let _ = proxy_title.send_event(BrowserEvent::TabTitleChanged(tab_id, title));
             })
             .with_navigation_handler(move |nav_url: String| {
+                if nav_url.starts_with("evergreen://settings") {
+                    let _ = proxy_nav_interceptor.send_event(BrowserEvent::Ipc(UiToHostMessage::OpenSettings));
+                    return false;
+                }
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(tab_id, nav_url));
                 true
             })
@@ -159,7 +179,7 @@ impl BrowserApp {
     }
 
     fn handle_open_settings(&mut self) {
-        if let Some(existing) = self.tab_manager.tabs().iter().find(|t| t.url == "evergreen://settings") {
+        if let Some(existing) = self.tab_manager.tabs().iter().find(|t| t.url.starts_with("evergreen://settings")) {
             let id = existing.id;
             self.handle_switch_tab(id);
         } else {
@@ -209,7 +229,14 @@ impl BrowserApp {
             let active_id = active.id;
             match normalize_url(raw_url, "https://duckduckgo.com/?q=%s") {
                 Ok(target) => {
+                    if target.starts_with("evergreen://settings") {
+                        self.handle_open_settings();
+                        return;
+                    }
                     self.tab_manager.update_url(active_id, target.clone());
+                    if let Some(host) = extract_host(&target) {
+                        self.tab_manager.update_favicon(active_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                    }
                     if let Some(wv) = self.tabs.get(&active_id) {
                         let _ = wv.load_url(&target);
                     }
@@ -218,6 +245,85 @@ impl BrowserApp {
                 Err(err) => eprintln!("Navigation error: {}", err),
             }
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn show_native_menu(&mut self, logical_x: f64, logical_y: f64) {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            CreatePopupMenu, AppendMenuW, TrackPopupMenuEx, DestroyMenu,
+            MF_STRING, MF_SEPARATOR, TPM_RIGHTALIGN, TPM_TOPALIGN, TPM_RETURNCMD,
+        };
+        use windows::Win32::Foundation::{HWND, POINT};
+        use windows::core::w;
+        use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        if let Some(window) = &self.window {
+            if let Ok(handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
+                    let hwnd = HWND(win32_handle.hwnd.get() as _);
+                    let scale = window.scale_factor();
+                    let mut pt = POINT {
+                        x: (logical_x * scale) as i32,
+                        y: (logical_y * scale) as i32,
+                    };
+                    unsafe {
+                        use windows::Win32::Graphics::Gdi::ClientToScreen;
+                        let _ = ClientToScreen(hwnd, &mut pt);
+
+                        if let Ok(hmenu) = CreatePopupMenu() {
+                            let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("New Tab"));
+                            let _ = AppendMenuW(hmenu, MF_STRING, 1002, w!("New Window"));
+                            let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, None);
+                            let _ = AppendMenuW(hmenu, MF_STRING, 1003, w!("DevTools"));
+                            let _ = AppendMenuW(hmenu, MF_STRING, 1004, w!("Settings"));
+
+                            let cmd = TrackPopupMenuEx(
+                                hmenu,
+                                (TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_RETURNCMD).0,
+                                pt.x,
+                                pt.y,
+                                hwnd,
+                                None,
+                            );
+                            let _ = DestroyMenu(hmenu);
+
+                            match cmd.0 {
+                                1001 => self.handle_create_tab(None),
+                                1002 => {
+                                    if let Ok(exe) = std::env::current_exe() {
+                                        let _ = std::process::Command::new(exe).spawn();
+                                    }
+                                }
+                                1003 => {
+                                    if let Some(active) = self.tab_manager.active_tab() {
+                                        if let Some(wv) = self.tabs.get(&active.id) {
+                                            wv.open_devtools();
+                                        }
+                                    }
+                                }
+                                1004 => self.handle_open_settings(),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn show_native_menu(&mut self, _x: f64, _y: f64) {}
+}
+
+fn extract_host(url: &str) -> Option<String> {
+    let after_scheme = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    let host = after_scheme.split('/').next()?.split(':').next()?;
+    if host.contains('.') {
+        Some(host.to_string())
+    } else {
+        None
     }
 }
 
@@ -324,6 +430,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                 }
+                UiToHostMessage::OpenMenu { x, y } => {
+                    self.show_native_menu(x, y);
+                }
                 UiToHostMessage::OpenSettings => {
                     self.handle_open_settings();
                 }
@@ -362,7 +471,10 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 self.sync_ui_state();
             }
             BrowserEvent::TabNavigated(tab_id, url) => {
-                self.tab_manager.update_url(tab_id, url);
+                self.tab_manager.update_url(tab_id, url.clone());
+                if let Some(host) = extract_host(&url) {
+                    self.tab_manager.update_favicon(tab_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                }
                 self.sync_ui_state();
             }
             BrowserEvent::CommandDone(name, success, output) => {
