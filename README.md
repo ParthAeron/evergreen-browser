@@ -29,19 +29,15 @@ To maintain speed, privacy, and simplicity, the following features are permanent
 - ❌ No AI sidebars, crypto widgets, or shopping assistants
 - ❌ No sponsored tiles or feed recommendations
 
-See [docs/NON_GOALS.md](docs/NON_GOALS.md) for details.
-
 ---
 
-## Architecture
+## Workspace Structure
 
 Evergreen Browser is structured as a cargo workspace with clean separation of concerns:
 
 - `evergreen-core`: Engine-agnostic data models, tab state management, typed IPC schemas, and the `EngineHost` trait.
 - `evergreen-engine-webview2`: Thin adapter binding `evergreen-core` to WebView2 via `wry` and raw COM interfaces.
 - `evergreen-browser`: The binary shell hosting the `winit` event loop and embedded HTML/CSS/JS chrome webview.
-
-For details on architecture and extending the browser, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
