@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// Application settings persisted to `%APPDATA%\<app>\settings.json` or local directory in portable mode.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     /// Engine settings
     pub engine: EngineSettings,
@@ -18,7 +18,7 @@ pub struct Settings {
     pub updates: UpdateSettings,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EngineSettings {
     /// Command to run when the user triggers "Update engine now"
     pub update_command: String,
@@ -26,7 +26,7 @@ pub struct EngineSettings {
     pub auto_check: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivacySettings {
     /// If true, tabs run in ephemeral/private mode by default (no history or persistent cookies)
     pub ephemeral_default: bool,
@@ -34,7 +34,7 @@ pub struct PrivacySettings {
     pub persistent_sites: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PerformanceSettings {
     /// Duration of inactivity in seconds before suspending a background tab (default: 300s = 5m)
     pub sleep_after_secs: u64,
@@ -44,7 +44,7 @@ pub struct PerformanceSettings {
     pub background_throttling: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceSettings {
     /// Theme preference: "system", "light", "dark"
     pub theme: String,
@@ -52,7 +52,7 @@ pub struct AppearanceSettings {
     pub density: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadSettings {
     /// Prompt for save destination on each download
     pub ask_where_to_save: bool,
@@ -60,7 +60,7 @@ pub struct DownloadSettings {
     pub default_folder: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateSettings {
     /// Check for app updates on startup
     pub auto_check_app_updates: bool,

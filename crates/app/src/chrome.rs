@@ -1,59 +1,99 @@
 //! Chrome UI webview management and IPC message routing.
 
-use evergreen_core::ipc::{HostToUiMessage, UiToHostMessage};
+use wry::dpi::{LogicalPosition, LogicalSize, Position, Size};
+use wry::Rect;
 
 pub const EMBEDDED_CHROME_HTML: &str = include_str!("../ui/index.html");
+pub const CHROME_HEIGHT: f64 = 76.0;
 
-pub struct ChromeController {
-    // IPC and webview bridge state
+/// Create logical bounds for child webviews
+pub fn create_bounds(x: f64, y: f64, width: f64, height: f64) -> Rect {
+    Rect {
+        position: Position::Logical(LogicalPosition::new(x, y)),
+        size: Size::Logical(LogicalSize::new(width, height)),
+    }
 }
 
-impl ChromeController {
-    pub fn new() -> Self {
-        Self {}
+/// Normalize an omnibox input string into a valid HTTP/HTTPS URL or search engine query.
+pub fn normalize_url(input: &str, search_template: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Ok("about:blank".to_string());
     }
 
-    pub fn handle_incoming_ipc(&mut self, message: UiToHostMessage) {
-        match message {
-            UiToHostMessage::CreateTab { url } => {
-                println!("Chrome IPC: CreateTab {:?}", url);
+    if trimmed == "about:blank" {
+        return Ok(trimmed.to_string());
+    }
+
+    // Explicit valid scheme
+    if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+        return Ok(trimmed.to_string());
+    }
+
+    // Disallowed schemes (security check)
+    if trimmed.starts_with("javascript:")
+        || trimmed.starts_with("file:")
+        || trimmed.starts_with("data:")
+        || trimmed.starts_with("vbscript:")
+    {
+        return Err(format!("Navigation to scheme prohibited: {}", trimmed));
+    }
+
+    // Hostname check: contains dot and no spaces
+    if trimmed.contains('.') && !trimmed.contains(' ') {
+        return Ok(format!("https://{}", trimmed));
+    }
+
+    // Fallback: search query
+    let encoded_query = url_encode(trimmed);
+    Ok(search_template.replace("%s", &encoded_query))
+}
+
+/// Simple percent encoder for search queries
+fn url_encode(input: &str) -> String {
+    let mut result = String::new();
+    for byte in input.bytes() {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                result.push(byte as char);
             }
-            UiToHostMessage::SwitchTab { id } => {
-                println!("Chrome IPC: SwitchTab {:?}", id);
-            }
-            UiToHostMessage::CloseTab { id } => {
-                println!("Chrome IPC: CloseTab {:?}", id);
-            }
-            UiToHostMessage::Navigate { url } => {
-                println!("Chrome IPC: Navigate {}", url);
-            }
-            UiToHostMessage::GoBack => {
-                println!("Chrome IPC: GoBack");
-            }
-            UiToHostMessage::GoForward => {
-                println!("Chrome IPC: GoForward");
-            }
-            UiToHostMessage::Reload => {
-                println!("Chrome IPC: Reload");
-            }
-            UiToHostMessage::Stop => {
-                println!("Chrome IPC: Stop");
-            }
-            UiToHostMessage::OpenDevTools => {
-                println!("Chrome IPC: OpenDevTools");
-            }
-            UiToHostMessage::OpenSettings => {
-                println!("Chrome IPC: OpenSettings");
-            }
-            UiToHostMessage::SaveSettings { settings_json } => {
-                println!("Chrome IPC: SaveSettings length {}", settings_json.len());
-            }
-            UiToHostMessage::RunEngineUpdate => {
-                println!("Chrome IPC: RunEngineUpdate");
-            }
-            UiToHostMessage::RunForkUpdate => {
-                println!("Chrome IPC: RunForkUpdate");
+            b' ' => result.push('+'),
+            _ => {
+                result.push_str(&format!("%{:02X}", byte));
             }
         }
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_url() {
+        let template = "https://duckduckgo.com/?q=%s";
+
+        assert_eq!(normalize_url("about:blank", template).unwrap(), "about:blank");
+        assert_eq!(
+            normalize_url("https://example.com", template).unwrap(),
+            "https://example.com"
+        );
+        assert_eq!(
+            normalize_url("http://localhost:3000", template).unwrap(),
+            "http://localhost:3000"
+        );
+        assert_eq!(
+            normalize_url("github.com", template).unwrap(),
+            "https://github.com"
+        );
+        assert_eq!(
+            normalize_url("rust programming language", template).unwrap(),
+            "https://duckduckgo.com/?q=rust+programming+language"
+        );
+
+        assert!(normalize_url("javascript:alert(1)", template).is_err());
+        assert!(normalize_url("file:///C:/test.txt", template).is_err());
+        assert!(normalize_url("data:text/html,<h1>hi</h1>", template).is_err());
     }
 }

@@ -2,7 +2,7 @@ use crate::tabs::{TabId, TabState};
 use serde::{Deserialize, Serialize};
 
 /// Strongly-typed commands sent from Chrome UI (JS) to Rust host.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "action", content = "payload")]
 pub enum UiToHostMessage {
     /// Request creating a new tab
@@ -28,7 +28,7 @@ pub enum UiToHostMessage {
 }
 
 /// Strongly-typed state events sent from Rust host to Chrome UI (JS).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event", content = "data")]
 pub enum HostToUiMessage {
     /// Full tab state update

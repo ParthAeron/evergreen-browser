@@ -18,7 +18,7 @@ pub enum TabStatus {
 }
 
 /// Metadata and state for an individual tab.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TabState {
     pub id: TabId,
     pub url: String,

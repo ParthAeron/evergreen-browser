@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Evergreen Browser Chrome</title>
+  <title>Evergreen Browser</title>
   <style>
     :root {
       --bg-chrome: #1e1e24;
@@ -45,6 +45,11 @@
       padding: 4px 8px 0 8px;
       gap: 4px;
       overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tab-strip::-webkit-scrollbar {
+      display: none;
     }
 
     .tab {
@@ -91,11 +96,14 @@
       border-radius: 50%;
       opacity: 0.6;
       cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
     }
 
     .tab-close:hover {
       background: rgba(255, 255, 255, 0.2);
       opacity: 1;
+      color: var(--danger-color);
     }
 
     .new-tab-btn {
@@ -110,6 +118,7 @@
       border-radius: 4px;
       cursor: pointer;
       font-size: 18px;
+      flex-shrink: 0;
     }
 
     .new-tab-btn:hover {
@@ -138,11 +147,17 @@
       color: var(--text-muted);
       border-radius: 4px;
       cursor: pointer;
+      font-size: 14px;
     }
 
-    .nav-btn:hover {
+    .nav-btn:hover:not(:disabled) {
       background: var(--bg-tab-hover);
       color: var(--text-main);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
     }
 
     .omnibox-container {
@@ -158,18 +173,19 @@
       background: var(--bg-tab);
       border: 1px solid var(--border-color);
       border-radius: 14px;
-      padding: 0 32px 0 12px;
+      padding: 0 14px;
       color: var(--text-main);
       font-size: 12px;
       outline: none;
+      user-select: text;
     }
 
     .omnibox:focus {
       border-color: var(--accent-color);
-      background: #22222c;
+      background: #20202a;
     }
 
-    /* Settings Modal Mockup */
+    /* Settings Modal */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -177,7 +193,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.75);
       z-index: 100;
       justify-content: center;
       align-items: center;
@@ -191,74 +207,109 @@
       background: var(--bg-chrome);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      width: 480px;
+      width: 500px;
       padding: 20px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
     .modal-header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 16px;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
     }
 
     .btn-action {
       background: var(--accent-color);
       color: #fff;
       border: none;
-      padding: 6px 12px;
+      padding: 6px 14px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: 500;
+    }
+
+    .btn-action:hover {
+      opacity: 0.9;
     }
   </style>
 </head>
 <body>
-  <div class="tab-strip" id="tabStrip">
-    <div class="tab active" data-id="1">
-      <span class="tab-title">New Tab</span>
-      <span class="tab-close" onclick="closeTab(1, event)">&times;</span>
-    </div>
-    <button class="new-tab-btn" onclick="createTab()" title="New Tab (Ctrl+T)">+</button>
+  <!-- Tab Strip (role=tablist for a11y) -->
+  <div class="tab-strip" id="tabStrip" role="tablist" aria-label="Browser tabs">
+    <div id="tabsContainer" style="display: flex; gap: 4px;"></div>
+    <button class="new-tab-btn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New Tab">+</button>
   </div>
 
+  <!-- Navigation Bar -->
   <div class="nav-bar">
-    <button class="nav-btn" onclick="sendAction('GoBack')" title="Back (Alt+Left)">&#8592;</button>
-    <button class="nav-btn" onclick="sendAction('GoForward')" title="Forward (Alt+Right)">&#8594;</button>
-    <button class="nav-btn" onclick="sendAction('Reload')" title="Reload (Ctrl+R)">&#8635;</button>
+    <button class="nav-btn" id="btnBack" onclick="sendAction('GoBack')" title="Back (Alt+Left)" aria-label="Back">&#8592;</button>
+    <button class="nav-btn" id="btnForward" onclick="sendAction('GoForward')" title="Forward (Alt+Right)" aria-label="Forward">&#8594;</button>
+    <button class="nav-btn" id="btnReload" onclick="sendAction('Reload')" title="Reload (Ctrl+R)" aria-label="Reload">&#8635;</button>
     
     <div class="omnibox-container">
-      <input type="text" class="omnibox" id="omnibox" placeholder="Search or enter web address..." onkeydown="handleOmniboxKey(event)">
+      <input type="text" class="omnibox" id="omnibox" placeholder="Search or enter address (Ctrl+L)" aria-label="Address and search bar" onkeydown="handleOmniboxKey(event)">
     </div>
 
-    <button class="nav-btn" onclick="sendAction('OpenDevTools')" title="DevTools (F12)">🛠</button>
-    <button class="nav-btn" onclick="toggleSettings()" title="Settings">⚙</button>
+    <button class="nav-btn" onclick="sendAction('OpenDevTools')" title="DevTools (F12)" aria-label="Developer Tools">🛠</button>
+    <button class="nav-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">⚙</button>
   </div>
 
-  <div class="modal-overlay" id="settingsModal">
-    <div class="modal">
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal" onclick="handleOverlayClick(event)">
+    <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>Settings</h3>
-        <button class="nav-btn" onclick="toggleSettings()">&times;</button>
+        <button class="nav-btn" onclick="toggleSettings()" aria-label="Close Settings">&times;</button>
       </div>
-      <p style="color: var(--text-muted); margin-bottom: 12px;">Evergreen Browser Settings</p>
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div>
-          <label>Engine: <strong>Microsoft WebView2 (Evergreen)</strong></label>
-        </div>
-        <div>
-          <button class="btn-action" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
-        </div>
+
+      <div class="settings-row">
+        <span>Engine:</span>
+        <strong id="engineVersionLabel">Microsoft WebView2</strong>
+      </div>
+
+      <div class="settings-row">
+        <span>Privacy:</span>
+        <span style="color: #6ed68f;">Ephemeral Mode Active (Zero traces retained)</span>
+      </div>
+
+      <div class="settings-row">
+        <span>Update Engine:</span>
+        <button class="btn-action" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
+      </div>
+
+      <div class="settings-row">
+        <span>Developer / Fork Update:</span>
+        <button class="btn-action" style="background: var(--bg-tab);" onclick="sendAction('RunForkUpdate')">Run Fork Update</button>
       </div>
     </div>
   </div>
 
   <script>
+    let activeTabId = null;
+
     function postIpc(action, payload = null) {
       if (window.ipc) {
         window.ipc.postMessage(JSON.stringify({ action, payload }));
       } else {
-        console.log("IPC message:", action, payload);
+        console.log("[IPC OUT]", action, payload);
       }
     }
 
@@ -266,13 +317,17 @@
       postIpc(action);
     }
 
-    function createTab() {
-      postIpc('CreateTab', { url: 'about:blank' });
+    function createNewTab() {
+      postIpc('CreateTab', { url: null });
     }
 
     function closeTab(id, event) {
-      event.stopPropagation();
+      if (event) event.stopPropagation();
       postIpc('CloseTab', { id });
+    }
+
+    function switchTab(id) {
+      postIpc('SwitchTab', { id });
     }
 
     function handleOmniboxKey(e) {
@@ -288,6 +343,67 @@
       const modal = document.getElementById('settingsModal');
       modal.classList.toggle('open');
     }
+
+    function handleOverlayClick(e) {
+      if (e.target.id === 'settingsModal') {
+        toggleSettings();
+      }
+    }
+
+    // Window interface called by Rust host via evaluate_script
+    window.__shellUpdate = function(state) {
+      if (!state) return;
+
+      const container = document.getElementById('tabsContainer');
+      container.innerHTML = '';
+      activeTabId = state.active_tab_id;
+
+      if (state.tabs && state.tabs.length > 0) {
+        state.tabs.forEach(tab => {
+          const tabEl = document.createElement('div');
+          tabEl.className = 'tab' + (tab.id === state.active_tab_id ? ' active' : '');
+          tabEl.setAttribute('role', 'tab');
+          tabEl.setAttribute('aria-selected', tab.id === state.active_tab_id);
+          tabEl.onclick = () => switchTab(tab.id);
+
+          const titleEl = document.createElement('span');
+          titleEl.className = 'tab-title';
+          titleEl.textContent = tab.title || 'New Tab';
+          titleEl.title = tab.title || tab.url;
+
+          const closeEl = document.createElement('span');
+          closeEl.className = 'tab-close';
+          closeEl.innerHTML = '&times;';
+          closeEl.title = 'Close tab';
+          closeEl.onclick = (ev) => closeTab(tab.id, ev);
+
+          tabEl.appendChild(titleEl);
+          tabEl.appendChild(closeEl);
+          container.appendChild(tabEl);
+
+          if (tab.id === state.active_tab_id) {
+            const omnibox = document.getElementById('omnibox');
+            if (document.activeElement !== omnibox) {
+              omnibox.value = tab.url === 'about:blank' ? '' : tab.url;
+            }
+            document.getElementById('btnBack').disabled = !tab.can_go_back;
+            document.getElementById('btnForward').disabled = !tab.can_go_forward;
+          }
+        });
+      }
+    };
+
+    window.__focusOmnibox = function() {
+      const omnibox = document.getElementById('omnibox');
+      omnibox.focus();
+      omnibox.select();
+    };
+
+    window.__syncEngineInfo = function(version) {
+      if (version) {
+        document.getElementById('engineVersionLabel').textContent = 'WebView2 ' + version;
+      }
+    };
   </script>
 </body>
 </html>
