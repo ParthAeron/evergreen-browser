@@ -1,0 +1,16 @@
+[package]
+name = "evergreen-engine-webview2"
+version = "0.1.0"
+edition = "2021"
+authors = ["Parth"]
+description = "WebView2 runtime engine adapter for Evergreen Browser"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+evergreen-core = { path = "../core" }
+wry = "0.57"
+windows = { version = "0.62", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+] }
+webview2-com = "0.39"

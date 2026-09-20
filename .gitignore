@@ -1,0 +1,23 @@
+# Rust
+/target
+Cargo.lock
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.bak
+*~
+Thumbs.db
+Desktop.ini
+
+# Windows build artifacts
+*.pdb
+*.obj
+*.exe
+*.dll
+
+# Portable runtime data / test artifacts
+profile/
+user_data/
+*.log

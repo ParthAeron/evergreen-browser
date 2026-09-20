@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "crates/core",
+    "crates/engine-webview2",
+    "crates/app",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,15 @@
+/* Evergreen Browser — User Theme Customization
+ * Drop custom CSS variables here to override the Chrome UI look and feel.
+ */
+
+:root {
+  --bg-chrome: #1e1e24;
+  --bg-tab: #2b2b36;
+  --bg-tab-active: #18181f;
+  --bg-tab-hover: #353542;
+  --text-main: #f0f0f5;
+  --text-muted: #9595a8;
+  --border-color: #383848;
+  --accent-color: #4e8cff;
+  --danger-color: #e05252;
+}

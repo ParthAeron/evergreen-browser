@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evergreen Browser Chrome</title>
+  <style>
+    :root {
+      --bg-chrome: #1e1e24;
+      --bg-tab: #2b2b36;
+      --bg-tab-active: #18181f;
+      --bg-tab-hover: #353542;
+      --text-main: #f0f0f5;
+      --text-muted: #9595a8;
+      --border-color: #383848;
+      --accent-color: #4e8cff;
+      --danger-color: #e05252;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-chrome);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      font-size: 13px;
+      overflow: hidden;
+      height: 76px;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    /* Tab Strip */
+    .tab-strip {
+      display: flex;
+      align-items: center;
+      height: 38px;
+      padding: 4px 8px 0 8px;
+      gap: 4px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      min-width: 120px;
+      max-width: 220px;
+      padding: 0 10px;
+      background: var(--bg-tab);
+      border-radius: 6px 6px 0 0;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.1s ease;
+      position: relative;
+    }
+
+    .tab.active {
+      background: var(--bg-tab-active);
+      color: var(--text-main);
+      font-weight: 500;
+      box-shadow: 0 -1px 3px rgba(0,0,0,0.3);
+    }
+
+    .tab:hover:not(.active) {
+      background: var(--bg-tab-hover);
+    }
+
+    .tab-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      opacity: 0.6;
+      cursor: pointer;
+    }
+
+    .tab-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      opacity: 1;
+    }
+
+    .new-tab-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .new-tab-btn:hover {
+      background: var(--bg-tab);
+      color: var(--text-main);
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      height: 38px;
+      padding: 0 8px;
+      gap: 6px;
+      background: var(--bg-tab-active);
+    }
+
+    .nav-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .nav-btn:hover {
+      background: var(--bg-tab-hover);
+      color: var(--text-main);
+    }
+
+    .omnibox-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+
+    .omnibox {
+      width: 100%;
+      height: 28px;
+      background: var(--bg-tab);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 0 32px 0 12px;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .omnibox:focus {
+      border-color: var(--accent-color);
+      background: #22222c;
+    }
+
+    /* Settings Modal Mockup */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-chrome);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      width: 480px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .btn-action {
+      background: var(--accent-color);
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="tab-strip" id="tabStrip">
+    <div class="tab active" data-id="1">
+      <span class="tab-title">New Tab</span>
+      <span class="tab-close" onclick="closeTab(1, event)">&times;</span>
+    </div>
+    <button class="new-tab-btn" onclick="createTab()" title="New Tab (Ctrl+T)">+</button>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="sendAction('GoBack')" title="Back (Alt+Left)">&#8592;</button>
+    <button class="nav-btn" onclick="sendAction('GoForward')" title="Forward (Alt+Right)">&#8594;</button>
+    <button class="nav-btn" onclick="sendAction('Reload')" title="Reload (Ctrl+R)">&#8635;</button>
+    
+    <div class="omnibox-container">
+      <input type="text" class="omnibox" id="omnibox" placeholder="Search or enter web address..." onkeydown="handleOmniboxKey(event)">
+    </div>
+
+    <button class="nav-btn" onclick="sendAction('OpenDevTools')" title="DevTools (F12)">🛠</button>
+    <button class="nav-btn" onclick="toggleSettings()" title="Settings">⚙</button>
+  </div>
+
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button class="nav-btn" onclick="toggleSettings()">&times;</button>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 12px;">Evergreen Browser Settings</p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label>Engine: <strong>Microsoft WebView2 (Evergreen)</strong></label>
+        </div>
+        <div>
+          <button class="btn-action" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function postIpc(action, payload = null) {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({ action, payload }));
+      } else {
+        console.log("IPC message:", action, payload);
+      }
+    }
+
+    function sendAction(action) {
+      postIpc(action);
+    }
+
+    function createTab() {
+      postIpc('CreateTab', { url: 'about:blank' });
+    }
+
+    function closeTab(id, event) {
+      event.stopPropagation();
+      postIpc('CloseTab', { id });
+    }
+
+    function handleOmniboxKey(e) {
+      if (e.key === 'Enter') {
+        const val = e.target.value.trim();
+        if (val) {
+          postIpc('Navigate', { url: val });
+        }
+      }
+    }
+
+    function toggleSettings() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>
