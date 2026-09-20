@@ -5,8 +5,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "action", content = "payload")]
 pub enum UiToHostMessage {
+    /// Emitted when the chrome UI has finished loading and is ready for initial state
+    ChromeReady,
     /// Request creating a new tab
     CreateTab { url: Option<String> },
+    /// Request opening a new browser window
+    OpenNewWindow,
     /// Switch active tab
     SwitchTab { id: TabId },
     /// Close an existing tab

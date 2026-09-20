@@ -6,16 +6,19 @@
   <title>Evergreen Browser</title>
   <style>
     :root {
-      --bg-chrome: #1e1e24;
-      --bg-tab: #2b2b36;
-      --bg-tab-active: #18181f;
-      --bg-tab-hover: #353542;
-      --text-main: #f0f0f5;
-      --text-muted: #9595a8;
-      --border-color: #383848;
-      --accent-color: #4e8cff;
-      --danger-color: #e05252;
-      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --bg-chrome: #1e1e26;
+      --bg-tab: #272733;
+      --bg-tab-active: #141419;
+      --bg-tab-hover: #2f2f3f;
+      --bg-omnibox: #262633;
+      --bg-omnibox-focus: #181820;
+      --text-main: #f3f3f8;
+      --text-muted: #9595a6;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: #4e8cff;
+      --accent: #4e8cff;
+      --danger-color: #ef4444;
+      --font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
     }
 
     * {
@@ -34,7 +37,15 @@
       height: 76px;
       display: flex;
       flex-direction: column;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    svg {
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
     }
 
     /* Tab Strip */
@@ -42,8 +53,9 @@
       display: flex;
       align-items: center;
       height: 38px;
-      padding: 4px 8px 0 8px;
+      padding: 5px 8px 0 8px;
       gap: 4px;
+      background: var(--bg-chrome);
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -52,32 +64,43 @@
       display: none;
     }
 
+    #tabsContainer {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
     .tab {
       display: flex;
       align-items: center;
       gap: 8px;
-      height: 32px;
+      height: 33px;
       min-width: 120px;
       max-width: 220px;
       padding: 0 10px;
       background: var(--bg-tab);
-      border-radius: 6px 6px 0 0;
+      border-radius: 8px 8px 0 0;
       color: var(--text-muted);
       cursor: pointer;
       font-size: 12px;
-      transition: background 0.1s ease;
+      transition: background 0.1s ease, color 0.1s ease;
       position: relative;
+      border: 1px solid transparent;
+      border-bottom: none;
     }
 
     .tab.active {
       background: var(--bg-tab-active);
       color: var(--text-main);
       font-weight: 500;
-      box-shadow: 0 -1px 3px rgba(0,0,0,0.3);
+      border-color: var(--border-subtle);
+      box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.25);
     }
 
     .tab:hover:not(.active) {
       background: var(--bg-tab-hover);
+      color: var(--text-main);
     }
 
     .tab-title {
@@ -93,17 +116,21 @@
       justify-content: center;
       width: 16px;
       height: 16px;
-      border-radius: 50%;
+      border-radius: 4px;
       opacity: 0.6;
       cursor: pointer;
-      font-size: 14px;
-      line-height: 1;
+      transition: opacity 0.1s ease, background 0.1s ease;
     }
 
     .tab-close:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.15);
       opacity: 1;
       color: var(--danger-color);
+    }
+
+    .tab-close svg {
+      width: 12px;
+      height: 12px;
     }
 
     .new-tab-btn {
@@ -115,15 +142,20 @@
       background: transparent;
       border: none;
       color: var(--text-muted);
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 18px;
       flex-shrink: 0;
+      transition: background 0.1s ease, color 0.1s ease;
     }
 
     .new-tab-btn:hover {
       background: var(--bg-tab);
       color: var(--text-main);
+    }
+
+    .new-tab-btn svg {
+      width: 16px;
+      height: 16px;
     }
 
     /* Navigation Bar */
@@ -134,6 +166,8 @@
       padding: 0 8px;
       gap: 6px;
       background: var(--bg-tab-active);
+      border-top: 1px solid var(--border-subtle);
+      position: relative;
     }
 
     .nav-btn {
@@ -145,9 +179,9 @@
       background: transparent;
       border: none;
       color: var(--text-muted);
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
+      transition: background 0.1s ease, color 0.1s ease;
     }
 
     .nav-btn:hover:not(:disabled) {
@@ -157,9 +191,15 @@
 
     .nav-btn:disabled {
       opacity: 0.3;
-      cursor: default;
+      cursor: not-allowed;
     }
 
+    .nav-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Omnibox */
     .omnibox-container {
       flex: 1;
       display: flex;
@@ -167,137 +207,199 @@
       position: relative;
     }
 
+    .omnibox-lock {
+      position: absolute;
+      left: 10px;
+      display: flex;
+      align-items: center;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .omnibox-lock svg {
+      width: 13px;
+      height: 13px;
+    }
+
     .omnibox {
       width: 100%;
       height: 28px;
-      background: var(--bg-tab);
-      border: 1px solid var(--border-color);
+      background: var(--bg-omnibox);
+      border: 1px solid var(--border-subtle);
       border-radius: 14px;
-      padding: 0 14px;
+      padding: 0 14px 0 30px;
       color: var(--text-main);
       font-size: 12px;
+      font-family: inherit;
       outline: none;
       user-select: text;
+      transition: border-color 0.15s ease, background 0.15s ease;
     }
 
     .omnibox:focus {
-      border-color: var(--accent-color);
-      background: #20202a;
+      border-color: var(--border-focus);
+      background: var(--bg-omnibox-focus);
     }
 
-    /* Settings Modal */
-    .modal-overlay {
+    .omnibox.loading {
+      border-color: var(--accent);
+      background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(255, 255, 255, 0.05) 75%,
+        transparent 75%,
+        transparent
+      );
+      background-size: 20px 20px;
+      animation: progress-bar 1s linear infinite;
+    }
+
+    @keyframes progress-bar {
+      from { background-position: 20px 0; }
+      to { background-position: 0 0; }
+    }
+
+    /* Kebab Menu */
+    .menu-dropdown {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.75);
-      z-index: 100;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .modal-overlay.open {
-      display: flex;
-    }
-
-    .modal {
-      background: var(--bg-chrome);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      width: 500px;
-      padding: 20px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-      display: flex;
+      top: 38px;
+      right: 8px;
+      background: #20202a;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      width: 210px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      z-index: 1000;
       flex-direction: column;
-      gap: 16px;
+      padding: 6px;
     }
 
-    .modal-header {
+    .menu-dropdown.open {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 8px;
     }
 
-    .modal-header h3 {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .settings-row {
+    .menu-item {
+      padding: 8px 12px;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 13px;
-    }
-
-    .btn-action {
-      background: var(--accent-color);
-      color: #fff;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 4px;
-      cursor: pointer;
+      gap: 10px;
+      color: var(--text-main);
       font-size: 12px;
-      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s ease;
     }
 
-    .btn-action:hover {
-      opacity: 0.9;
+    .menu-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .menu-item svg {
+      width: 15px;
+      height: 15px;
+      color: var(--text-muted);
+    }
+
+    .menu-separator {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.07);
+      margin: 4px 0;
+    }
+
+    .menu-shortcut {
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: inherit;
     }
   </style>
 </head>
 <body>
-  <!-- Tab Strip (role=tablist for a11y) -->
+  <!-- Tab Strip -->
   <div class="tab-strip" id="tabStrip" role="tablist" aria-label="Browser tabs">
-    <div id="tabsContainer" style="display: flex; gap: 4px;"></div>
-    <button class="new-tab-btn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New Tab">+</button>
+    <div id="tabsContainer"></div>
+    <button class="new-tab-btn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New Tab">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>
 
   <!-- Navigation Bar -->
   <div class="nav-bar">
-    <button class="nav-btn" id="btnBack" onclick="sendAction('GoBack')" title="Back (Alt+Left)" aria-label="Back">&#8592;</button>
-    <button class="nav-btn" id="btnForward" onclick="sendAction('GoForward')" title="Forward (Alt+Right)" aria-label="Forward">&#8594;</button>
-    <button class="nav-btn" id="btnReload" onclick="sendAction('Reload')" title="Reload (Ctrl+R)" aria-label="Reload">&#8635;</button>
-    
+    <button class="nav-btn" id="btnBack" onclick="sendAction('GoBack')" title="Back (Alt+Left)" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <button class="nav-btn" id="btnForward" onclick="sendAction('GoForward')" title="Forward (Alt+Right)" aria-label="Forward">
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+    <button class="nav-btn" id="btnReload" onclick="sendAction('Reload')" title="Reload (Ctrl+R)" aria-label="Reload">
+      <svg viewBox="0 0 24 24">
+        <path d="M21 2v6h-6"/>
+        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+        <path d="M3 22v-6h6"/>
+        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+      </svg>
+    </button>
+
     <div class="omnibox-container">
-      <input type="text" class="omnibox" id="omnibox" placeholder="Search or enter address (Ctrl+L)" aria-label="Address and search bar" onkeydown="handleOmniboxKey(event)">
+      <div class="omnibox-lock">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <input
+        type="text"
+        class="omnibox"
+        id="omnibox"
+        placeholder="Search or enter address (Ctrl+L)"
+        aria-label="Address and search bar"
+        onkeydown="handleOmniboxKey(event)"
+      />
     </div>
 
-    <button class="nav-btn" onclick="sendAction('OpenDevTools')" title="DevTools (F12)" aria-label="Developer Tools">🛠</button>
-    <button class="nav-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">⚙</button>
-  </div>
+    <!-- 3-Dot Kebab Menu Toggle -->
+    <button class="nav-btn" id="btnMenu" onclick="toggleMenu(event)" title="Menu" aria-label="Menu">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="1.5"/>
+        <circle cx="12" cy="5" r="1.5"/>
+        <circle cx="12" cy="19" r="1.5"/>
+      </svg>
+    </button>
 
-  <!-- Settings Modal -->
-  <div class="modal-overlay" id="settingsModal" onclick="handleOverlayClick(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <h3>Settings</h3>
-        <button class="nav-btn" onclick="toggleSettings()" aria-label="Close Settings">&times;</button>
+    <!-- Kebab Dropdown Flyout -->
+    <div class="menu-dropdown" id="menuDropdown">
+      <div class="menu-item" onclick="createNewTab()">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>New Tab</span>
+        <span class="menu-shortcut">Ctrl+T</span>
       </div>
-
-      <div class="settings-row">
-        <span>Engine:</span>
-        <strong id="engineVersionLabel">Microsoft WebView2</strong>
+      <div class="menu-item" onclick="sendAction('OpenNewWindow')">
+        <svg viewBox="0 0 24 24">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <span>New Window</span>
+        <span class="menu-shortcut">Ctrl+N</span>
       </div>
-
-      <div class="settings-row">
-        <span>Privacy:</span>
-        <span style="color: #6ed68f;">Ephemeral Mode Active (Zero traces retained)</span>
+      <div class="menu-separator"></div>
+      <div class="menu-item" onclick="sendAction('OpenDevTools')">
+        <svg viewBox="0 0 24 24">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+        <span>DevTools</span>
+        <span class="menu-shortcut">F12</span>
       </div>
-
-      <div class="settings-row">
-        <span>Update Engine:</span>
-        <button class="btn-action" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
-      </div>
-
-      <div class="settings-row">
-        <span>Developer / Fork Update:</span>
-        <button class="btn-action" style="background: var(--bg-tab);" onclick="sendAction('RunForkUpdate')">Run Fork Update</button>
+      <div class="menu-item" onclick="sendAction('OpenSettings')">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
       </div>
     </div>
   </div>
@@ -309,8 +411,9 @@
       if (window.ipc) {
         window.ipc.postMessage(JSON.stringify({ action, payload }));
       } else {
-        console.log("[IPC OUT]", action, payload);
+        console.log('[IPC OUT]', action, payload);
       }
+      closeMenu();
     }
 
     function sendAction(action) {
@@ -323,6 +426,8 @@
 
     function closeTab(id, event) {
       if (event) event.stopPropagation();
+      const tabEl = document.getElementById('tab-' + id);
+      if (tabEl) tabEl.style.display = 'none';
       postIpc('CloseTab', { id });
     }
 
@@ -334,21 +439,46 @@
       if (e.key === 'Enter') {
         const val = e.target.value.trim();
         if (val) {
+          document.getElementById('omnibox').classList.add('loading');
           postIpc('Navigate', { url: val });
         }
       }
     }
 
-    function toggleSettings() {
-      const modal = document.getElementById('settingsModal');
-      modal.classList.toggle('open');
+    // Kebab Menu logic
+    function toggleMenu(e) {
+      e.stopPropagation();
+      document.getElementById('menuDropdown').classList.toggle('open');
     }
 
-    function handleOverlayClick(e) {
-      if (e.target.id === 'settingsModal') {
-        toggleSettings();
-      }
+    function closeMenu() {
+      document.getElementById('menuDropdown').classList.remove('open');
     }
+
+    document.addEventListener('click', closeMenu);
+
+    // Keyboard Shortcuts listener inside chrome webview
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        createNewTab();
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (activeTabId) closeTab(activeTabId);
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        window.__focusOmnibox();
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        sendAction('Reload');
+      } else if (e.key === 'F12') {
+        e.preventDefault();
+        sendAction('OpenDevTools');
+      } else if (e.key === 'F5') {
+        e.preventDefault();
+        sendAction('Reload');
+      }
+    });
 
     // Window interface called by Rust host via evaluate_script
     window.__shellUpdate = function(state) {
@@ -361,6 +491,7 @@
       if (state.tabs && state.tabs.length > 0) {
         state.tabs.forEach(tab => {
           const tabEl = document.createElement('div');
+          tabEl.id = 'tab-' + tab.id;
           tabEl.className = 'tab' + (tab.id === state.active_tab_id ? ' active' : '');
           tabEl.setAttribute('role', 'tab');
           tabEl.setAttribute('aria-selected', tab.id === state.active_tab_id);
@@ -368,12 +499,18 @@
 
           const titleEl = document.createElement('span');
           titleEl.className = 'tab-title';
-          titleEl.textContent = tab.title || 'New Tab';
+          let displayTitle = tab.title;
+          if (!displayTitle || displayTitle === 'about:blank' || displayTitle === 'evergreen://newtab') {
+            displayTitle = 'New Tab';
+          } else if (displayTitle === 'evergreen://settings') {
+            displayTitle = 'Settings';
+          }
+          titleEl.textContent = displayTitle;
           titleEl.title = tab.title || tab.url;
 
           const closeEl = document.createElement('span');
           closeEl.className = 'tab-close';
-          closeEl.innerHTML = '&times;';
+          closeEl.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
           closeEl.title = 'Close tab';
           closeEl.onclick = (ev) => closeTab(tab.id, ev);
 
@@ -384,8 +521,15 @@
           if (tab.id === state.active_tab_id) {
             const omnibox = document.getElementById('omnibox');
             if (document.activeElement !== omnibox) {
-              omnibox.value = tab.url === 'about:blank' ? '' : tab.url;
+              if (tab.url === 'evergreen://newtab' || tab.url === 'about:blank') {
+                omnibox.value = '';
+                omnibox.placeholder = 'Search DuckDuckGo or enter address (Ctrl+L)';
+              } else {
+                omnibox.value = tab.url;
+              }
             }
+            omnibox.classList.remove('loading');
+
             document.getElementById('btnBack').disabled = !tab.can_go_back;
             document.getElementById('btnForward').disabled = !tab.can_go_forward;
           }
@@ -399,10 +543,9 @@
       omnibox.select();
     };
 
-    window.__syncEngineInfo = function(version) {
-      if (version) {
-        document.getElementById('engineVersionLabel').textContent = 'WebView2 ' + version;
-      }
+    // Signal ready when DOM is parsed
+    window.onload = () => {
+      postIpc('ChromeReady');
     };
   </script>
 </body>

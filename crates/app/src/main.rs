@@ -2,6 +2,9 @@
 
 mod chrome;
 mod window;
+mod accelerator;
+mod settings_ui;
+mod home_ui;
 
 use chrome::{create_bounds, normalize_url, CHROME_HEIGHT, EMBEDDED_CHROME_HTML};
 use evergreen_core::env::{detect_webview2_runtime, is_process_elevated};
@@ -24,6 +27,7 @@ enum BrowserEvent {
     TabTitleChanged(TabId, String),
     TabNavigated(TabId, String),
     CommandDone(String, bool, String),
+    Shortcut(String),
 }
 
 struct BrowserApp {
@@ -66,7 +70,7 @@ impl BrowserApp {
                 tabs: self.tab_manager.tabs().to_vec(),
                 active_tab_id: self.tab_manager.active_tab().map(|t| t.id),
             };
-            if let Ok(json) = serde_json::to_string(&sync_msg) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&sync_msg).unwrap_or_default()) {
                 let script = format!("if (window.__shellUpdate) {{ window.__shellUpdate({}); }}", json);
                 let _ = chrome.evaluate_script(&script);
             }
@@ -75,13 +79,42 @@ impl BrowserApp {
 
     fn create_tab_webview(&mut self, tab_id: TabId, url: &str) -> Result<WebView, wry::Error> {
         let window = self.window.as_ref().expect("Window must exist to create tab");
-        let bounds = create_bounds(0.0, CHROME_HEIGHT, self.window_width, (self.window_height - CHROME_HEIGHT).max(1.0));
+        let bounds = create_bounds(
+            0.0,
+            CHROME_HEIGHT,
+            self.window_width,
+            (self.window_height - CHROME_HEIGHT).max(1.0),
+        );
 
         let proxy_title = self.proxy.clone();
         let proxy_nav = self.proxy.clone();
+        let proxy_ipc = self.proxy.clone();
+
+        let runtime_ver = self.runtime_version.clone();
 
         let webview = WebViewBuilder::new()
             .with_bounds(bounds)
+            .with_custom_protocol("evergreen".into(), move |_webview_id, request| {
+                let host = request.uri().host().unwrap_or("");
+                let path = request.uri().path();
+                if host == "newtab" || host == "home" || path == "/newtab" || path == "/home" || path == "newtab" || path == "home" {
+                    wry::http::Response::builder()
+                        .header("Content-Type", "text/html; charset=utf-8")
+                        .body(std::borrow::Cow::Borrowed(home_ui::HOME_HTML.as_bytes()))
+                        .unwrap()
+                } else if host == "settings" || path == "/settings" || path == "settings" {
+                    let html = settings_ui::SETTINGS_HTML.replace("Detecting...", &format!("v{} (Active)", runtime_ver));
+                    wry::http::Response::builder()
+                        .header("Content-Type", "text/html; charset=utf-8")
+                        .body(std::borrow::Cow::Owned(html.into_bytes()))
+                        .unwrap()
+                } else {
+                    wry::http::Response::builder()
+                        .status(404)
+                        .body(std::borrow::Cow::Borrowed(&b"Not Found"[..]))
+                        .unwrap()
+                }
+            })
             .with_url(url)
             .with_incognito(true)
             .with_devtools(true)
@@ -92,13 +125,20 @@ impl BrowserApp {
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(tab_id, nav_url));
                 true
             })
+            .with_ipc_handler(move |req: wry::http::Request<String>| {
+                if let Ok(msg) = serde_json::from_str::<UiToHostMessage>(req.body()) {
+                    let _ = proxy_ipc.send_event(BrowserEvent::Ipc(msg));
+                }
+            })
             .build_as_child(window.as_ref())?;
+
+        accelerator::attach_accelerator_keys(&webview, self.proxy.clone());
 
         Ok(webview)
     }
 
     fn handle_create_tab(&mut self, url: Option<String>) {
-        let target_url = url.unwrap_or_else(|| "https://example.com".to_string());
+        let target_url = url.unwrap_or_else(|| "evergreen://newtab".to_string());
         let tab_id = self.tab_manager.create_tab(&target_url, Self::now_secs());
 
         // Hide other tabs
@@ -115,6 +155,15 @@ impl BrowserApp {
                 self.sync_ui_state();
             }
             Err(e) => eprintln!("Failed to create tab webview: {:?}", e),
+        }
+    }
+
+    fn handle_open_settings(&mut self) {
+        if let Some(existing) = self.tab_manager.tabs().iter().find(|t| t.url == "evergreen://settings") {
+            let id = existing.id;
+            self.handle_switch_tab(id);
+        } else {
+            self.handle_create_tab(Some("evergreen://settings".to_string()));
         }
     }
 
@@ -160,9 +209,11 @@ impl BrowserApp {
             let active_id = active.id;
             match normalize_url(raw_url, "https://duckduckgo.com/?q=%s") {
                 Ok(target) => {
+                    self.tab_manager.update_url(active_id, target.clone());
                     if let Some(wv) = self.tabs.get(&active_id) {
                         let _ = wv.load_url(&target);
                     }
+                    self.sync_ui_state();
                 }
                 Err(err) => eprintln!("Navigation error: {}", err),
             }
@@ -199,6 +250,7 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 .build_as_child(window.as_ref())
             {
                 Ok(chrome_wv) => {
+                    accelerator::attach_accelerator_keys(&chrome_wv, self.proxy.clone());
                     let version_script = format!(
                         "if (window.__syncEngineInfo) {{ window.__syncEngineInfo('{}'); }}",
                         self.runtime_version
@@ -209,16 +261,24 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 Err(e) => eprintln!("Failed to create chrome webview: {:?}", e),
             }
 
-            // 2. Create initial active tab
-            self.handle_create_tab(Some("https://example.com".to_string()));
+            // 2. Create initial active tab with Fluent Home Screen
+            self.handle_create_tab(None);
         }
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: BrowserEvent) {
         match event {
             BrowserEvent::Ipc(action) => match action {
+                UiToHostMessage::ChromeReady => {
+                    self.sync_ui_state();
+                }
                 UiToHostMessage::CreateTab { url } => {
                     self.handle_create_tab(url);
+                }
+                UiToHostMessage::OpenNewWindow => {
+                    if let Ok(exe) = std::env::current_exe() {
+                        let _ = std::process::Command::new(exe).spawn();
+                    }
                 }
                 UiToHostMessage::SwitchTab { id } => {
                     self.handle_switch_tab(id);
@@ -265,9 +325,7 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
                 UiToHostMessage::OpenSettings => {
-                    if let Some(chrome) = &self.chrome_webview {
-                        let _ = chrome.evaluate_script("toggleSettings();");
-                    }
+                    self.handle_open_settings();
                 }
                 UiToHostMessage::SaveSettings { .. } => {}
                 UiToHostMessage::RunEngineUpdate => {
@@ -300,23 +358,83 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
             },
             BrowserEvent::TabTitleChanged(tab_id, title) => {
-                if let Some(tab) = self.tab_manager.tabs().iter().find(|t| t.id == tab_id) {
-                    if tab.title != title {
-                        // Update title in state
-                        for t in self.tab_manager.tabs() {
-                            if t.id == tab_id {
-                                // Since tab_manager.tabs() returns &[TabState], let's reflect this
-                            }
-                        }
-                        self.sync_ui_state();
-                    }
-                }
+                self.tab_manager.update_title(tab_id, title);
+                self.sync_ui_state();
             }
-            BrowserEvent::TabNavigated(_tab_id, _url) => {
+            BrowserEvent::TabNavigated(tab_id, url) => {
+                self.tab_manager.update_url(tab_id, url);
                 self.sync_ui_state();
             }
             BrowserEvent::CommandDone(name, success, output) => {
                 println!("[COMMAND RESULT] {}: success={} (output: {})", name, success, output.trim());
+            }
+            BrowserEvent::Shortcut(shortcut) => {
+                match shortcut.as_str() {
+                    "Ctrl+T" => self.handle_create_tab(None),
+                    "Ctrl+N" => {
+                        if let Ok(exe) = std::env::current_exe() {
+                            let _ = std::process::Command::new(exe).spawn();
+                        }
+                    }
+                    "Ctrl+W" => {
+                        if let Some(active) = self.tab_manager.active_tab() {
+                            let id = active.id;
+                            self.handle_close_tab(id, event_loop);
+                        }
+                    }
+                    "Ctrl+L" => {
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script("if (window.__focusOmnibox) { window.__focusOmnibox(); }");
+                        }
+                    }
+                    "Ctrl+R" | "F5" => {
+                        if let Some(active) = self.tab_manager.active_tab() {
+                            if let Some(wv) = self.tabs.get(&active.id) {
+                                let _ = wv.reload();
+                            }
+                        }
+                    }
+                    "Alt+Left" => {
+                        if let Some(active) = self.tab_manager.active_tab() {
+                            if let Some(wv) = self.tabs.get(&active.id) {
+                                let _ = wv.go_back();
+                            }
+                        }
+                    }
+                    "Alt+Right" => {
+                        if let Some(active) = self.tab_manager.active_tab() {
+                            if let Some(wv) = self.tabs.get(&active.id) {
+                                let _ = wv.go_forward();
+                            }
+                        }
+                    }
+                    "Ctrl+Tab" => {
+                        let tabs = self.tab_manager.tabs();
+                        if tabs.len() > 1 {
+                            let current_idx = tabs.iter().position(|t| Some(t.id) == self.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
+                            let next_idx = (current_idx + 1) % tabs.len();
+                            let next_id = tabs[next_idx].id;
+                            self.handle_switch_tab(next_id);
+                        }
+                    }
+                    "Ctrl+Shift+Tab" => {
+                        let tabs = self.tab_manager.tabs();
+                        if tabs.len() > 1 {
+                            let current_idx = tabs.iter().position(|t| Some(t.id) == self.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
+                            let prev_idx = if current_idx == 0 { tabs.len() - 1 } else { current_idx - 1 };
+                            let prev_id = tabs[prev_idx].id;
+                            self.handle_switch_tab(prev_id);
+                        }
+                    }
+                    "F12" => {
+                        if let Some(active) = self.tab_manager.active_tab() {
+                            if let Some(wv) = self.tabs.get(&active.id) {
+                                wv.open_devtools();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -368,6 +486,11 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     Key::Character(ref s) if s.eq_ignore_ascii_case("t") && self.modifiers.control_key() => {
                         self.handle_create_tab(None);
                     }
+                    Key::Character(ref s) if s.eq_ignore_ascii_case("n") && self.modifiers.control_key() => {
+                        if let Ok(exe) = std::env::current_exe() {
+                            let _ = std::process::Command::new(exe).spawn();
+                        }
+                    }
                     Key::Character(ref s) if s.eq_ignore_ascii_case("w") && self.modifiers.control_key() => {
                         if let Some(active) = self.tab_manager.active_tab() {
                             let id = active.id;
@@ -411,9 +534,15 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         let tabs = self.tab_manager.tabs();
                         if tabs.len() > 1 {
                             let current_idx = tabs.iter().position(|t| Some(t.id) == self.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
-                            let next_idx = (current_idx + 1) % tabs.len();
-                            let next_id = tabs[next_idx].id;
-                            self.handle_switch_tab(next_id);
+                            if self.modifiers.shift_key() {
+                                let prev_idx = if current_idx == 0 { tabs.len() - 1 } else { current_idx - 1 };
+                                let prev_id = tabs[prev_idx].id;
+                                self.handle_switch_tab(prev_id);
+                            } else {
+                                let next_idx = (current_idx + 1) % tabs.len();
+                                let next_id = tabs[next_idx].id;
+                                self.handle_switch_tab(next_id);
+                            }
                         }
                     }
                     _ => {}

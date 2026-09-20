@@ -17,11 +17,20 @@ pub fn create_bounds(x: f64, y: f64, width: f64, height: f64) -> Rect {
 /// Normalize an omnibox input string into a valid HTTP/HTTPS URL or search engine query.
 pub fn normalize_url(input: &str, search_template: &str) -> Result<String, String> {
     let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Ok("about:blank".to_string());
+    if trimmed.is_empty() || trimmed == "about:home" || trimmed == "about:newtab" {
+        return Ok("evergreen://newtab".to_string());
     }
 
     if trimmed == "about:blank" {
+        return Ok(trimmed.to_string());
+    }
+
+    if trimmed == "about:settings" {
+        return Ok("evergreen://settings".to_string());
+    }
+
+    // Internal browser scheme
+    if trimmed.starts_with("evergreen://") {
         return Ok(trimmed.to_string());
     }
 
@@ -75,6 +84,12 @@ mod tests {
         let template = "https://duckduckgo.com/?q=%s";
 
         assert_eq!(normalize_url("about:blank", template).unwrap(), "about:blank");
+        assert_eq!(normalize_url("", template).unwrap(), "evergreen://newtab");
+        assert_eq!(normalize_url("about:newtab", template).unwrap(), "evergreen://newtab");
+        assert_eq!(normalize_url("about:home", template).unwrap(), "evergreen://newtab");
+        assert_eq!(normalize_url("about:settings", template).unwrap(), "evergreen://settings");
+        assert_eq!(normalize_url("evergreen://settings", template).unwrap(), "evergreen://settings");
+        assert_eq!(normalize_url("evergreen://newtab", template).unwrap(), "evergreen://newtab");
         assert_eq!(
             normalize_url("https://example.com", template).unwrap(),
             "https://example.com"

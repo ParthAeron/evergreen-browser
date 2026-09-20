@@ -78,8 +78,10 @@ fn test_tab_manager_pop_last_closed_lifo_and_skips_blank() {
 #[test]
 fn test_ipc_serde_ui_to_host_all_variants() {
     let variants = vec![
+        UiToHostMessage::ChromeReady,
         UiToHostMessage::CreateTab { url: Some("https://test.com".to_string()) },
         UiToHostMessage::CreateTab { url: None },
+        UiToHostMessage::OpenNewWindow,
         UiToHostMessage::SwitchTab { id: TabId(42) },
         UiToHostMessage::CloseTab { id: TabId(7) },
         UiToHostMessage::Navigate { url: "https://nav.com".to_string() },
