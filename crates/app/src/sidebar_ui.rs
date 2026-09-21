@@ -602,6 +602,7 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       if (action === 'CreateTab') {
         postIpc('CreateTab', { url: null });
       } else if (action === 'OpenSettings') {
+        postIpc('CloseSidebar');
         postIpc('OpenSettings');
       } else {
         postIpc(action, payload);

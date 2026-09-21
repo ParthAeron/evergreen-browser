@@ -153,16 +153,14 @@ impl WindowContext {
             self.window_width
         };
 
-        if let Some(active) = self.tab_manager.active_tab() {
-            if let Some(wv) = self.tabs.get(&active.id) {
-                let bounds = create_bounds(
-                    0.0,
-                    chrome_h,
-                    content_width,
-                    (self.window_height - chrome_h).max(1.0),
-                );
-                let _ = wv.set_bounds(bounds);
-            }
+        let content_bounds = create_bounds(
+            0.0,
+            chrome_h,
+            content_width,
+            (self.window_height - chrome_h).max(1.0),
+        );
+        for wv in self.tabs.values() {
+            let _ = wv.set_bounds(content_bounds);
         }
 
         if self.is_sidebar_open {
@@ -785,11 +783,11 @@ impl BrowserApp {
                 status: evergreen_core::tabs::TabStatus::Active,
                 last_active_timestamp_secs: Self::now_secs(),
             };
-            win_ctx.tab_manager.insert_tab(tab_state, None);
+            let actual_id = win_ctx.tab_manager.insert_tab(tab_state, None);
 
             // Hide other tabs in this window
             for (id, wv) in &win_ctx.tabs {
-                if *id != tab_id {
+                if *id != actual_id {
                     let _ = wv.set_visible(false);
                 }
             }
@@ -800,11 +798,11 @@ impl BrowserApp {
             let is_sidebar_open = win_ctx.is_sidebar_open;
             let chrome_h = win_ctx.current_chrome_height();
 
-            match self.create_tab_webview(win_id, tab_id, &target_url, window.as_ref(), win_width, win_height, is_sidebar_open, chrome_h) {
+            match self.create_tab_webview(win_id, actual_id, &target_url, window.as_ref(), win_width, win_height, is_sidebar_open, chrome_h) {
                 Ok(wv) => {
                     let _ = wv.set_visible(true);
                     if let Some(win_ctx) = self.windows.get_mut(&win_id) {
-                        win_ctx.tabs.insert(tab_id, wv);
+                        win_ctx.tabs.insert(actual_id, wv);
                         win_ctx.sync_ui_state();
                         win_ctx.update_sidebar_sync(&self.cert_cache);
                         let default_zoom = self.settings.appearance.default_zoom_level;
@@ -822,6 +820,7 @@ impl BrowserApp {
 
     fn handle_open_settings(&mut self, win_id: WindowId) {
         if let Some(win_ctx) = self.windows.get_mut(&win_id) {
+            win_ctx.close_sidebar();
             if let Some(existing) = win_ctx.tab_manager.tabs().iter().find(|t| t.url.starts_with("evergreen://settings")) {
                 let id = existing.id;
                 win_ctx.handle_switch_tab(id, &self.cert_cache);
@@ -1489,10 +1488,8 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                     "Escape" => {
                         if let Some(win) = self.windows.get_mut(&win_id) {
-                            if win.sidebar_webview.is_some() {
-                                win.sidebar_webview = None;
-                                win.is_sidebar_open = false;
-                                win.update_layout();
+                            if win.is_sidebar_open {
+                                win.close_sidebar();
                                 if let Some(c) = &win.chrome_webview {
                                     let _ = c.evaluate_script("if (window.__syncSidebarState) window.__syncSidebarState(null);");
                                 }

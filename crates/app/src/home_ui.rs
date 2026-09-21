@@ -11,7 +11,7 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>New Tab - Evergreen</title>
-  <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239595a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Cpath d='M3 9h18'/%3E%3Cpath d='M9 3v6'/%3E%3C/svg%3E">
   <style>
     :root {
       color-scheme: dark;

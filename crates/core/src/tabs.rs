@@ -223,9 +223,15 @@ impl TabManager {
 
     /// Insert an existing tab state into this manager (e.g. from another window).
     pub fn insert_tab(&mut self, mut tab: TabState, at_index: Option<usize>) -> TabId {
-        let new_id = TabId(self.next_id);
-        self.next_id += 1;
-        tab.id = new_id;
+        let id = if tab.id.0 > 0 {
+            self.next_id = self.next_id.max(tab.id.0 + 1);
+            tab.id
+        } else {
+            let new_id = TabId(self.next_id);
+            self.next_id += 1;
+            tab.id = new_id;
+            new_id
+        };
         tab.status = TabStatus::Active;
 
         if let Some(prev_active) = self.active_tab_id {
@@ -236,8 +242,8 @@ impl TabManager {
 
         let idx = at_index.unwrap_or(self.tabs.len()).min(self.tabs.len());
         self.tabs.insert(idx, tab);
-        self.active_tab_id = Some(new_id);
-        new_id
+        self.active_tab_id = Some(id);
+        id
     }
 }
 
