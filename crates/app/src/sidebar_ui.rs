@@ -660,9 +660,17 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
       let html = '';
       for (const [id, item] of activeDownloads.entries()) {
-        const pct = item.total_bytes > 0 ? Math.min(100, Math.round((item.received_bytes / item.total_bytes) * 100)) : 0;
+        const isDone = item.state === 'Completed' || (item.total_bytes > 0 && item.received_bytes >= item.total_bytes);
+        const pct = isDone ? 100 : (item.total_bytes > 0 ? Math.min(100, Math.round((item.received_bytes / item.total_bytes) * 100)) : 0);
         const mbReceived = (item.received_bytes / (1024 * 1024)).toFixed(1);
         const mbTotal = (item.total_bytes / (1024 * 1024)).toFixed(1);
+        const barColor = isDone ? 'var(--accent-green)' : 'var(--accent-blue)';
+        const statusHtml = isDone
+          ? '<span style="color: var(--accent-green); font-weight: 500;">Done</span>'
+          : (item.state === 'Interrupted' ? '<span style="color: var(--danger-color);">Interrupted</span>' : `<span>${pct}% · Downloading</span>`);
+        const actionHtml = isDone
+          ? '<span style="color: var(--accent-green); font-weight: 500;">Finished</span>'
+          : `<button onclick="sendAction('CancelDownload', { download_id: ${id} })" style="background: transparent; border: none; color: var(--danger-color); cursor: pointer; font-size: 11px;">Cancel</button>`;
         html += `
           <div class="download-card" id="sidebar-dl-${id}" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
             <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 500;">
@@ -670,11 +678,11 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
               <span style="color: var(--text-muted); font-size: 11px;">${mbReceived} / ${mbTotal} MB</span>
             </div>
             <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
-              <div style="height: 100%; width: ${pct}%; background: var(--accent-blue); transition: width 0.2s linear;"></div>
+              <div style="height: 100%; width: ${pct}%; background: ${barColor}; transition: width 0.2s linear;"></div>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
-              <span>${item.state === 'InProgress' ? `${pct}% · Downloading` : item.state}</span>
-              ${item.state === 'InProgress' ? `<button onclick="sendAction('CancelDownload', { download_id: ${id} })" style="background: transparent; border: none; color: var(--danger-color); cursor: pointer; font-size: 11px;">Cancel</button>` : `<span style="color: var(--accent-green);">Finished</span>`}
+              ${statusHtml}
+              ${actionHtml}
             </div>
           </div>
         `;

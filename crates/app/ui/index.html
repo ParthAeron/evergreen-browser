@@ -107,6 +107,26 @@
       color: var(--text-main);
     }
 
+    .tab.dragging {
+      opacity: 0.5;
+    }
+
+    .tab * {
+      pointer-events: none;
+    }
+
+    .tab .tab-close {
+      pointer-events: auto;
+    }
+
+    .tab.drag-over-left {
+      border-left: 2px solid var(--accent-blue) !important;
+    }
+
+    .tab.drag-over-right {
+      border-right: 2px solid var(--accent-blue) !important;
+    }
+
     .tab-favicon {
       width: 16px;
       height: 16px;
@@ -712,6 +732,7 @@
     let activeTabId = null;
     let draggedTabId = null;
     let draggedTabIndex = null;
+    let reorderDropped = false;
 
     function postIpc(action, payload = null) {
       if (window.ipc) {
@@ -838,11 +859,12 @@
     }
 
     window.__downloadProgress = function(data) {
+      const isDone = data.state === 'Completed' || (data.total_bytes > 0 && data.received_bytes >= data.total_bytes);
       activeDownloads.set(data.download_id, {
         filename: data.filename,
         received: data.received_bytes,
         total: data.total_bytes,
-        state: data.state
+        state: isDone ? 'Completed' : data.state
       });
       const badge = document.getElementById('downloadBadge');
       const ring = document.getElementById('downloadRing');
@@ -865,6 +887,8 @@
         const overallPct = Math.min(1, totalReceived / totalExpected);
         const offset = 81.68 * (1 - overallPct);
         ringFill.style.strokeDashoffset = offset;
+      } else {
+        ringFill.style.strokeDashoffset = 81.68;
       }
     };
 
@@ -965,46 +989,22 @@
       postIpc('ClosePermissionPrompt');
     }
 
-    /* Link Preview (Peek Modal & Status Tooltip) */
-    let currentPreviewUrl = '';
-
+    /* Link Preview (Status Tooltip) */
     window.__showStatusPreview = function(url) {
       const bar = document.getElementById('statusPreviewBar');
-      if (url) {
-        bar.textContent = url;
-        bar.style.display = 'block';
-      } else {
-        bar.style.display = 'none';
+      if (bar) {
+        if (url) {
+          bar.textContent = url;
+          bar.style.display = 'block';
+        } else {
+          bar.style.display = 'none';
+        }
       }
     };
 
     window.__hideStatusPreview = function() {
       window.__showStatusPreview('');
     };
-
-    window.__showLinkPreview = function(url) {
-      currentPreviewUrl = url;
-      const modal = document.getElementById('linkPreviewModal');
-      const title = document.getElementById('linkPreviewTitle');
-      const frame = document.getElementById('linkPreviewFrame');
-      title.textContent = url;
-      frame.src = url;
-      modal.style.display = 'flex';
-    };
-
-    function closeLinkPreview() {
-      const modal = document.getElementById('linkPreviewModal');
-      const frame = document.getElementById('linkPreviewFrame');
-      modal.style.display = 'none';
-      frame.src = 'about:blank';
-    }
-
-    function openPreviewInNewTab() {
-      if (currentPreviewUrl) {
-        postIpc('CreateTab', { url: currentPreviewUrl });
-        closeLinkPreview();
-      }
-    }
 
     /* Tab Rendering & Drag Reorder */
     window.__shellUpdate = function(msg) {
@@ -1042,9 +1042,10 @@
           tabEl.ondragstart = (e) => {
             draggedTabId = tab.id;
             draggedTabIndex = parseInt(tabEl.dataset.index, 10);
+            reorderDropped = false;
             tabEl.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', tab.id);
+            e.dataTransfer.setData('text/plain', String(tab.id));
           };
 
           tabEl.ondragend = (e) => {
@@ -1052,10 +1053,11 @@
             document.querySelectorAll('.tab').forEach(t => {
               t.classList.remove('drag-over-left', 'drag-over-right');
             });
-            // Detach if dragged outside bounds
-            if (e.clientY > 80 || e.clientX < -20 || e.clientX > window.innerWidth + 20 || e.clientY < -50) {
+            // Detach if dragged outside bounds and not already dropped for reorder
+            if (!reorderDropped && (e.clientY > 110 || e.clientX < -50 || e.clientX > window.innerWidth + 50 || e.clientY < -50)) {
               postIpc('DetachTabToNewWindow', { tab_id: draggedTabId, screen_x: e.screenX, screen_y: e.screenY });
             }
+            reorderDropped = false;
           };
 
           tabEl.ondragover = (e) => {
@@ -1078,10 +1080,20 @@
 
           tabEl.ondrop = (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            reorderDropped = true;
             tabEl.classList.remove('drag-over-left', 'drag-over-right');
             const targetIndex = parseInt(tabEl.dataset.index, 10);
-            if (draggedTabIndex !== null && draggedTabIndex !== targetIndex) {
-              postIpc('ReorderTab', { from_index: draggedTabIndex, to_index: targetIndex });
+            if (draggedTabIndex !== null && !isNaN(targetIndex)) {
+              const rect = tabEl.getBoundingClientRect();
+              const mid = rect.left + rect.width / 2;
+              let toIndex = (e.clientX < mid) ? targetIndex : targetIndex + 1;
+              if (draggedTabIndex < toIndex) {
+                toIndex = toIndex - 1;
+              }
+              if (toIndex !== draggedTabIndex) {
+                postIpc('ReorderTab', { from_index: draggedTabIndex, to_index: toIndex });
+              }
             }
           };
 

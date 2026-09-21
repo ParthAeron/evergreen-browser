@@ -90,77 +90,6 @@ const NAV_WATCHER_SCRIPT: &str = r#"
       tip.style.display = 'none';
     }
   });
-
-  // Interactive Link Preview (Peek Modal)
-  let peekModal = null;
-  function ensurePeekModal() {
-    if (!peekModal) {
-      peekModal = document.createElement('div');
-      peekModal.id = '__evergreen_peek_modal';
-      peekModal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(640px,90vw);height:min(460px,80vh);background:#181820;border:1px solid rgba(255,255,255,0.15);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,0.85);z-index:2147483647;display:none;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;';
-
-      const header = document.createElement('div');
-      header.style.cssText = 'height:36px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;background:#20202a;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px;color:#f0f0f5;';
-
-      const title = document.createElement('span');
-      title.id = '__evergreen_peek_title';
-      title.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px;font-weight:500;';
-
-      const actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;align-items:center;gap:8px;';
-
-      const newTabBtn = document.createElement('button');
-      newTabBtn.textContent = '↗ Open';
-      newTabBtn.style.cssText = 'background:transparent;border:1px solid rgba(255,255,255,0.15);color:#4e8cff;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;';
-      newTabBtn.onclick = () => {
-        const frame = document.getElementById('__evergreen_peek_frame');
-        if (frame && frame.src && window.ipc) {
-          window.ipc.postMessage(JSON.stringify({ action: 'CreateTab', payload: { url: frame.src } }));
-        }
-        peekModal.style.display = 'none';
-        frame.src = 'about:blank';
-      };
-
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '✕';
-      closeBtn.style.cssText = 'background:transparent;border:none;color:#9595a6;cursor:pointer;font-size:14px;padding:0 4px;';
-      closeBtn.onclick = () => {
-        peekModal.style.display = 'none';
-        const frame = document.getElementById('__evergreen_peek_frame');
-        if (frame) frame.src = 'about:blank';
-      };
-
-      actions.appendChild(newTabBtn);
-      actions.appendChild(closeBtn);
-      header.appendChild(title);
-      header.appendChild(actions);
-
-      const frame = document.createElement('iframe');
-      frame.id = '__evergreen_peek_frame';
-      frame.style.cssText = 'flex:1;width:100%;border:none;background:#14141a;';
-
-      peekModal.appendChild(header);
-      peekModal.appendChild(frame);
-      document.documentElement.appendChild(peekModal);
-    }
-    return peekModal;
-  }
-
-  document.addEventListener('click', (e) => {
-    if (e.altKey) {
-      const a = e.target.closest('a');
-      if (a && a.href) {
-        e.preventDefault();
-        e.stopPropagation();
-        const modal = ensurePeekModal();
-        const title = document.getElementById('__evergreen_peek_title');
-        const frame = document.getElementById('__evergreen_peek_frame');
-        title.textContent = a.href;
-        frame.src = a.href;
-        modal.style.display = 'flex';
-      }
-    }
-  }, true);
 })();
 "#;
 
@@ -453,11 +382,28 @@ impl WindowContext {
         }
     }
 
+    pub fn wake_active(&self) {
+        if let Some(active) = self.tab_manager.active_tab() {
+            if let Some(wv) = self.tabs.get(&active.id) {
+                accelerator::wake_webview(wv);
+            }
+        }
+        if let Some(chrome) = &self.chrome_webview {
+            accelerator::wake_webview(chrome);
+        }
+        if self.is_sidebar_open {
+            if let Some(sidebar) = &self.sidebar_webview {
+                accelerator::wake_webview(sidebar);
+            }
+        }
+    }
+
     pub fn handle_switch_tab(&mut self, target_id: TabId, cert_cache: &cert::CertificateCache) {
         if self.tab_manager.switch_tab(target_id, BrowserApp::now_secs()) {
             for (id, wv) in &self.tabs {
                 if *id == target_id {
                     let _ = wv.set_visible(true);
+                    accelerator::wake_webview(wv);
                 } else {
                     let _ = wv.set_visible(false);
                 }
@@ -533,9 +479,9 @@ impl BrowserApp {
         plugins.register(evergreen_core::plugins::FeaturePlugin::new(
             evergreen_core::plugins::PluginMetadata {
                 id: "link_preview".to_string(),
-                name: "Interactive Link Preview (Peek)".to_string(),
+                name: "Link Destination Preview (Status Bubble)".to_string(),
                 version: "1.0.0".to_string(),
-                description: "Bottom-left destination capsule and floating peek modal".to_string(),
+                description: "Bottom-left destination URL capsule when hovering hyperlinks".to_string(),
                 author: "Evergreen Team".to_string(),
                 is_core: false,
                 enabled_by_default: true,
@@ -678,6 +624,12 @@ impl BrowserApp {
                 win_ctx.chrome_webview = Some(chrome_wv);
             }
             Err(e) => eprintln!("Failed to create chrome webview: {:?}", e),
+        }
+
+        // Pre-warm sidebar webview in background (hidden) so 3-dot menu opens instantly
+        let _ = win_ctx.ensure_sidebar_webview(self.proxy.clone());
+        if let Some(sidebar) = &win_ctx.sidebar_webview {
+            let _ = sidebar.set_visible(false);
         }
 
         self.windows.insert(win_id, win_ctx);
@@ -1272,21 +1224,14 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 UiToHostMessage::PermissionResponse { permission_id, allow } => {
                     accelerator::resolve_permission(permission_id, allow);
                 }
-                UiToHostMessage::TriggerLinkPreview { url, peek } => {
+                UiToHostMessage::TriggerLinkPreview { url, .. } => {
                     if let Some(win) = self.windows.get(&win_id) {
                         if let Some(chrome) = &win.chrome_webview {
                             let escaped = url.replace('\\', "\\\\").replace('\'', "\\'");
-                            if peek {
-                                let _ = chrome.evaluate_script(&format!(
-                                    "if (window.__showLinkPreview) {{ window.__showLinkPreview('{}'); }}",
-                                    escaped
-                                ));
-                            } else {
-                                let _ = chrome.evaluate_script(&format!(
-                                    "if (window.__showStatusPreview) {{ window.__showStatusPreview('{}'); }}",
-                                    escaped
-                                ));
-                            }
+                            let _ = chrome.evaluate_script(&format!(
+                                "if (window.__showStatusPreview) {{ window.__showStatusPreview('{}'); }}",
+                                escaped
+                            ));
                         }
                     }
                 }
@@ -1577,6 +1522,11 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.modifiers = modifiers.state();
+            }
+            WindowEvent::Focused(true) => {
+                if let Some(win_ctx) = self.windows.get(&window_id) {
+                    win_ctx.wake_active();
+                }
             }
             WindowEvent::KeyboardInput { event, .. } if event.state.is_pressed() => {
                 match event.logical_key {

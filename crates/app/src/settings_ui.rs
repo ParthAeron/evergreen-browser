@@ -310,8 +310,8 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       </div>
       <div class="row">
         <div class="row-info">
-          <span class="row-label">Interactive Link Preview (Peek)</span>
-          <span class="row-desc">Bottom-left destination URL bubble and floating modal page preview</span>
+          <span class="row-label">Link Destination Preview (Status Bubble)</span>
+          <span class="row-desc">Show full target address in bottom-left status tooltip when hovering links</span>
         </div>
         <div class="row-action">
           <label class="switch">
@@ -474,8 +474,8 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       </div>
       <div class="row">
         <div class="row-info">
-          <span class="row-label">Interactive Link Preview (Peek)</span>
-          <span class="row-desc">Preview link destination in a floating preview card on hover or shortcut</span>
+          <span class="row-label">Link Destination Tooltip</span>
+          <span class="row-desc">Show full target address in bottom-left status bubble when hovering links</span>
         </div>
         <div class="row-action">
           <label class="switch">

@@ -52,6 +52,30 @@ pub fn resolve_permission(permission_id: u64, allow: bool) {
 pub fn resolve_permission(_permission_id: u64, _allow: bool) {}
 
 #[cfg(target_os = "windows")]
+pub fn wake_webview(wv: &WebView) {
+    use wry::WebViewExtWindows;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_3, COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC,
+    };
+    use windows::core::Interface;
+
+    let controller = wv.controller();
+    let _ = unsafe { controller.NotifyParentWindowPositionChanged() };
+    if let Ok(core) = unsafe { controller.CoreWebView2() } {
+        if let Ok(core3) = core.cast::<ICoreWebView2_3>() {
+            let mut is_suspended = windows::core::BOOL(0);
+            if unsafe { core3.IsSuspended(&mut is_suspended) }.is_ok() && is_suspended.as_bool() {
+                let _ = unsafe { core3.Resume() };
+            }
+        }
+    }
+    let _ = unsafe { controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC) };
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn wake_webview(_wv: &WebView) {}
+
+#[cfg(target_os = "windows")]
 pub fn attach_accelerator_keys(
     webview: &WebView,
     window_id: winit::window::WindowId,
@@ -379,6 +403,18 @@ pub fn attach_navigation_events(
         let mut token_p = Default::default();
         let _ = unsafe { core.add_PermissionRequested(&perm_handler, &mut token_p) };
 
+        // Process Failed Handler (detect GPU/renderer reset on sleep/standby)
+        let process_failed_handler = webview2_com::ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
+            if let Some(args) = args {
+                let mut kind = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PROCESS_FAILED_KIND(0);
+                let _ = unsafe { args.ProcessFailedKind(&mut kind) };
+                eprintln!("[PROCESS FAILED] WebView2 process failed kind: {:?}", kind.0);
+            }
+            Ok(())
+        }));
+        let mut token_pf = Default::default();
+        let _ = unsafe { core.add_ProcessFailed(&process_failed_handler, &mut token_pf) };
+
         // 6. Download Starting with Save As prompt and progress tracking
         use windows::core::Interface;
         if let Ok(core4) = core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_4>() {
@@ -413,16 +449,29 @@ pub fn attach_navigation_events(
                             let bytes_handler = webview2_com::BytesReceivedChangedEventHandler::create(Box::new(move |_sender, _args| {
                                 let mut received = 0i64;
                                 let mut total = 0i64;
+                                let mut raw_state = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_DOWNLOAD_STATE(0);
                                 unsafe {
                                     let _ = op_bytes.BytesReceived(&mut received);
                                     let _ = op_bytes.TotalBytesToReceive(&mut total);
+                                    let _ = op_bytes.State(&mut raw_state);
                                 }
+                                let state_str = match raw_state.0 {
+                                    1 => "Interrupted",
+                                    2 => "Completed",
+                                    _ => {
+                                        if total > 0 && received >= total {
+                                            "Completed"
+                                        } else {
+                                            "InProgress"
+                                        }
+                                    }
+                                };
                                 let _ = proxy_bytes.send_event(crate::BrowserEvent::DownloadProgress {
                                     download_id: 1,
                                     filename: dl_fn.clone(),
                                     received_bytes: received,
                                     total_bytes: total,
-                                    state: "InProgress".to_string(),
+                                    state: state_str.to_string(),
                                 });
                                 Ok(())
                             }));
@@ -442,6 +491,7 @@ pub fn attach_navigation_events(
                                     let _ = op_state.TotalBytesToReceive(&mut total);
                                 }
                                 let state_str = match state.0 {
+                                    0 if total > 0 && received >= total => "Completed",
                                     0 => "InProgress",
                                     1 => "Interrupted",
                                     2 => "Completed",
