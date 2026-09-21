@@ -258,6 +258,7 @@ pub fn attach_navigation_events(
     window_id: winit::window::WindowId,
     tab_id: evergreen_core::tabs::TabId,
     proxy: EventLoopProxy<crate::BrowserEvent>,
+    allowed_cert_hosts: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 ) {
     use webview2_com::{DocumentTitleChangedEventHandler, HistoryChangedEventHandler, SourceChangedEventHandler};
     use wry::WebViewExtWindows;
@@ -437,6 +438,7 @@ pub fn attach_navigation_events(
         // 6. Strict TLS Warning Interstitial (ServerCertificateErrorDetected)
         if let Ok(core14) = core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_14>() {
             let proxy_cert = proxy.clone();
+            let cert_allowed = allowed_cert_hosts.clone();
             let cert_handler = webview2_com::ServerCertificateErrorDetectedEventHandler::create(Box::new(move |_sender, args| {
                 if let Some(args) = args {
                     let mut error_status = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_WEB_ERROR_STATUS(0);
@@ -448,7 +450,15 @@ pub fn attach_navigation_events(
                     } else {
                         String::new()
                     };
-                    // Cancel the untrusted request
+
+                    let host = crate::extract_host(&uri_str).unwrap_or_else(|| uri_str.clone());
+                    if cert_allowed.lock().map(|set| set.contains(&host)).unwrap_or(false) {
+                        eprintln!("[TLS BYPASS] Allowing user-whitelisted certificate for: {}", host);
+                        let _ = unsafe { args.SetAction(webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_SERVER_CERTIFICATE_ERROR_ACTION_ALWAYS_ALLOW) };
+                        return Ok(());
+                    }
+
+                    // Otherwise cancel the untrusted request and show interstitial
                     let _ = unsafe { args.SetAction(webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_SERVER_CERTIFICATE_ERROR_ACTION_CANCEL) };
                     let _ = proxy_cert.send_event(crate::BrowserEvent::ServerCertificateError {
                         window_id,
@@ -618,4 +628,5 @@ pub fn attach_navigation_events(
     _window_id: winit::window::WindowId,
     _tab_id: evergreen_core::tabs::TabId,
     _proxy: EventLoopProxy<crate::BrowserEvent>,
+    _allowed_cert_hosts: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 ) {}

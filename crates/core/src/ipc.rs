@@ -81,6 +81,8 @@ pub enum UiToHostMessage {
     SaveSettings { settings_json: String },
     RunEngineUpdate,
     RunForkUpdate,
+    /// User explicit bypass of an untrusted TLS/SSL certificate
+    BypassCertificateError { tab_id: TabId, host: String, url: String },
 }
 
 /// Security and certificate status for the active origin.

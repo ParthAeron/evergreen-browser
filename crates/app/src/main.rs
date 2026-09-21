@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! Evergreen Browser — Main Application Entrypoint
 
 mod chrome;
@@ -455,6 +456,7 @@ struct BrowserApp {
     settings: evergreen_core::settings::Settings,
     plugins: evergreen_core::plugins::PluginRegistry,
     next_tab_id: AtomicU64,
+    allowed_cert_hosts: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 }
 
 impl BrowserApp {
@@ -544,6 +546,7 @@ impl BrowserApp {
             settings,
             plugins,
             next_tab_id: AtomicU64::new(1),
+            allowed_cert_hosts: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
     }
 
@@ -771,7 +774,7 @@ impl BrowserApp {
             .build_as_child(window)?;
 
         accelerator::attach_accelerator_keys(&webview, win_id, self.proxy.clone());
-        accelerator::attach_navigation_events(&webview, win_id, tab_id, self.proxy.clone());
+        accelerator::attach_navigation_events(&webview, win_id, tab_id, self.proxy.clone(), self.allowed_cert_hosts.clone());
 
         Ok(webview)
     }
@@ -1316,6 +1319,17 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         win.sync_ui_state();
                     }
                 }
+                UiToHostMessage::BypassCertificateError { tab_id, host, url } => {
+                    eprintln!("[TLS BYPASS INITIATED] Bypassing certificate error for host: {} on Tab {:?}", host, tab_id);
+                    if let Ok(mut set) = self.allowed_cert_hosts.lock() {
+                        set.insert(host.clone());
+                    }
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(wv) = win.tabs.get(&tab_id) {
+                            let _ = wv.load_url(&url);
+                        }
+                    }
+                }
             },
             BrowserEvent::TabTitleChanged(win_id, tab_id, title) => {
                 if let Some(win) = self.windows.get_mut(&win_id) {
@@ -1406,12 +1420,15 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
             }
             BrowserEvent::ServerCertificateError { window_id, tab_id, request_uri, error_status } => {
+                let host = extract_host(&request_uri).unwrap_or_else(|| request_uri.clone());
                 eprintln!("[STRICT TLS] Certificate error {} for {} on Tab {:?}", error_status, request_uri, tab_id);
                 if let Some(win) = self.windows.get(&window_id) {
                     if let Some(wv) = win.tabs.get(&tab_id) {
                         let warning_html = format!(
-                            r#"data:text/html,<!DOCTYPE html><html><head><meta charset="utf-8"><title>Security Warning: Untrusted Certificate</title><style>body{{margin:0;padding:0;background:%23181820;color:%23f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;}}.box{{text-align:center;max-width:520px;padding:36px;background:%231f1f2a;border:1px solid rgba(239,68,68,0.3);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);}}.icon{{font-size:44px;margin-bottom:12px;}}h1{{font-size:20px;font-weight:600;margin:0 0 8px 0;color:%23ef4444;}}p{{font-size:13px;color:%2394a3b8;line-height:1.5;margin:0 0 16px 0;}}.uri{{font-size:12px;color:%23fca5a5;font-family:monospace;word-break:break-all;margin-bottom:24px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;}}button{{background:%23ef4444;color:white;border:none;border-radius:6px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;}}button:hover{{background:%23dc2626;}}</style></head><body><div class="box"><div class="icon">🔒⛔</div><h1>Untrusted Security Certificate</h1><p>Evergreen Browser has prevented connection to this site because its TLS certificate is invalid, expired, or self-signed. Attackers might be trying to steal your information.</p><div class="uri">{}</div><button onclick="if(window.history.length>1){{window.history.back();}}else{{location.href='evergreen://newtab';}}">Go Back to Safety</button></div></body></html>"#,
-                            request_uri
+                            r#"data:text/html,<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Security Warning: Untrusted Certificate</title><style>:root{{color-scheme:dark;--bg-gradient:radial-gradient(circle at 50% 25%,%2322222e 0%,%2316161d 100%);--surface-card:rgba(255,255,255,0.04);--border-subtle:rgba(255,255,255,0.08);--text-main:%23f0f0f5;--text-muted:%239595a8;--accent:%234e8cff;--accent-hover:%233b76e1;--danger:%23ef4444;--font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;}}*{{box-sizing:border-box;margin:0;padding:0;}}body{{background:var(--bg-gradient);color:var(--text-main);font-family:var(--font-family);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 24px;user-select:none;}}.card{{background:var(--surface-card);backdrop-filter:blur(16px);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,0.5);padding:40px 36px;max-width:540px;width:100%;text-align:center;}}.icon-badge{{width:64px;height:64px;margin:0 auto 20px;border-radius:50%;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;}}.icon-badge svg{{width:32px;height:32px;stroke:var(--danger);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}}h1{{font-size:22px;font-weight:600;letter-spacing:-0.3px;margin-bottom:12px;color:var(--text-main);}}p.desc{{font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px;}}p.desc strong{{color:var(--text-main);word-break:break-all;}}.uri-container{{margin-bottom:24px;padding:10px 14px;background:rgba(0,0,0,0.3);border:1px solid var(--border-subtle);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;font-family:monospace;}}.uri-text{{color:%23cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:left;}}.error-code{{color:%23f87171;background:rgba(239,68,68,0.15);padding:2px 8px;border-radius:4px;font-size:11px;flex-shrink:0;}}.button-group{{display:flex;align-items:center;justify-content:center;gap:12px;}}button{{border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 0.12s ease;}}.btn-safety{{background:var(--accent);color:%23ffffff;font-weight:600;box-shadow:0 4px 14px rgba(78,140,255,0.3);}}.btn-safety:hover{{background:var(--accent-hover);}}.btn-advanced{{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border-subtle);}}.btn-advanced:hover{{background:rgba(255,255,255,0.1);color:var(--text-main);}}.advanced-drawer{{display:none;margin-top:24px;padding:18px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.06);border-radius:10px;text-align:left;}}.advanced-drawer p{{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;}}.btn-proceed{{background:transparent;color:%23f87171;padding:6px 12px;border:1px solid rgba(239,68,68,0.3);border-radius:6px;font-size:12px;display:inline-block;}}.btn-proceed:hover{{background:rgba(239,68,68,0.12);color:%23fca5a5;}}</style></head><body><div class="card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h1>Your connection is not private</h1><p class="desc">Evergreen Browser prevented connection to <strong>{host}</strong> because its security certificate is untrusted, self-signed, or expired. Attackers might be trying to steal your information.</p><div class="uri-container"><span class="uri-text">{request_uri}</span><span class="error-code">NET::ERR_CERT_INVALID</span></div><div class="button-group"><button class="btn-safety" id="safetyBtn" onclick="goBack()">Go Back to Safety</button><button class="btn-advanced" id="advancedBtn" onclick="toggleAdvanced()">Advanced ▾</button></div><div class="advanced-drawer" id="advancedDrawer"><p>This server could not prove that it is <strong>{host}</strong>; its security certificate is not trusted by your computer's operating system. This may be caused by a misconfiguration or an attacker intercepting your connection.</p><button class="btn-proceed" id="proceedBtn" onclick="bypass()">Proceed to {host} (unsafe)</button></div></div><script>function goBack(){{if(window.history.length>1){{window.history.back();}}else{{location.href='evergreen://newtab';}}}}function toggleAdvanced(){{const d=document.getElementById('advancedDrawer');const b=document.getElementById('advancedBtn');const h=(d.style.display==='none'||!d.style.display);d.style.display=h?'block':'none';b.textContent=h?'Advanced ▴':'Advanced ▾';}}function bypass(){{if(window.ipc){{window.ipc.postMessage(JSON.stringify({{action:'BypassCertificateError',payload:{{tab_id:{tab_id},host:'{host}',url:'{request_uri}'}}}}));}}else{{location.reload();}}}}</script></body></html>"#,
+                            host = host,
+                            request_uri = request_uri,
+                            tab_id = tab_id.0
                         );
                         let _ = wv.load_url(&warning_html);
                     }

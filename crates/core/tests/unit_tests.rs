@@ -121,6 +121,7 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
         UiToHostMessage::RunEngineUpdate,
         UiToHostMessage::RunForkUpdate,
+        UiToHostMessage::BypassCertificateError { tab_id: TabId(1), host: "badssl.com".to_string(), url: "https://badssl.com/".to_string() },
     ];
 
     for msg in variants {
