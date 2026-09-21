@@ -1,4 +1,36 @@
+# Set default behavior to automatically normalize line endings to LF
 * text=auto eol=lf
+
+# Windows shell and script files require CRLF
 *.bat text eol=crlf
-*.ps1 text eol=crlf
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.reg text eol=crlf
+*.ini text eol=crlf
+
+# Source and documentation files (enforce LF)
+*.rs text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.b64 text eol=lf
+
+# Explicit binary files (never normalize line endings)
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.rgba binary
+*.zip binary
+*.tar.gz binary
+*.exe binary
+*.dll binary
+*.lib binary
+*.obj binary
+*.res binary
+*.pdb binary

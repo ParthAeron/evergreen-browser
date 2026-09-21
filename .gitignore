@@ -1,8 +1,28 @@
-# Rust
-/target
+# Rust build artifacts
+/target/
 Cargo.lock
 
-# IDE & OS
+# Distribution & packaging
+dist/
+*.zip
+
+# Portable runtime data & temporary profiles
+data/
+user_data/
+profile/
+portable.ini
+portable.lock
+*.log
+
+# Windows build artifacts & binaries
+*.pdb
+*.obj
+*.exe
+*.dll
+*.res
+*.lib
+
+# IDE, OS & editor files
 .idea/
 .vscode/
 *.swp
@@ -10,14 +30,8 @@ Cargo.lock
 *~
 Thumbs.db
 Desktop.ini
+.DS_Store
 
-# Windows build artifacts
-*.pdb
-*.obj
-*.exe
-*.dll
-
-# Portable runtime data / test artifacts
-profile/
-user_data/
-*.log
+# Node / JS tooling artifacts
+node_modules/
+package-lock.json
