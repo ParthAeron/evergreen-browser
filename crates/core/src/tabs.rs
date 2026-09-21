@@ -87,6 +87,9 @@ impl TabManager {
             let removed = self.tabs.remove(pos);
             if !removed.url.is_empty() && removed.url != "about:blank" {
                 self.closed_history.push(removed.url);
+                if self.closed_history.len() > 50 {
+                    self.closed_history.remove(0);
+                }
             }
 
             if self.active_tab_id == Some(id) {
@@ -272,4 +275,68 @@ impl TabManager {
         }
     }
 }
+
+/// Normalize an omnibox input string into a valid HTTP/HTTPS URL or search engine query.
+pub fn normalize_url(input: &str, search_template: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if trimmed.is_empty() || lower == "about:home" || lower == "about:newtab" {
+        return Ok("evergreen://newtab".to_string());
+    }
+
+    if lower == "about:blank" {
+        return Ok("about:blank".to_string());
+    }
+
+    if lower == "about:settings" {
+        return Ok("evergreen://settings".to_string());
+    }
+
+    // Internal browser scheme
+    if lower.starts_with("evergreen://") {
+        return Ok(trimmed.to_string());
+    }
+
+    // Explicit valid scheme
+    if lower.starts_with("https://") || lower.starts_with("http://") {
+        return Ok(trimmed.to_string());
+    }
+
+    // Disallowed schemes (security check - case-insensitive)
+    if lower.starts_with("javascript:")
+        || lower.starts_with("file:")
+        || lower.starts_with("data:")
+        || lower.starts_with("vbscript:")
+        || lower.starts_with("about:")
+    {
+        return Err(format!("Navigation to scheme prohibited: {}", trimmed));
+    }
+
+    // Hostname check: contains dot and no spaces
+    if trimmed.contains('.') && !trimmed.contains(' ') {
+        return Ok(format!("https://{}", trimmed));
+    }
+
+    // Fallback: search query
+    let encoded_query = url_encode(trimmed);
+    Ok(search_template.replace("%s", &encoded_query))
+}
+
+/// Simple percent encoder for search queries
+pub fn url_encode(input: &str) -> String {
+    let mut result = String::new();
+    for byte in input.bytes() {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                result.push(byte as char);
+            }
+            b' ' => result.push('+'),
+            _ => {
+                result.push_str(&format!("%{:02X}", byte));
+            }
+        }
+    }
+    result
+}
+
 

@@ -445,4 +445,111 @@ fn test_tab_manager_crash_and_snapshot_restore() {
     assert_eq!(tm_restored.tabs()[1].url, "https://beta.example");
 }
 
+#[test]
+fn test_tab_manager_extract_and_insert_tab() {
+    let mut tm1 = TabManager::new();
+    let id1 = tm1.create_tab("https://tab1.com", 100);
+    let _id2 = tm1.create_tab("https://tab2.com", 200);
+
+    // Extract tab 1 from tm1
+    let extracted = tm1.extract_tab(id1);
+    assert!(extracted.is_some());
+    let tab_state = extracted.unwrap();
+    assert_eq!(tab_state.url, "https://tab1.com");
+    assert_eq!(tm1.tabs().len(), 1);
+
+    // Insert into tm2
+    let mut tm2 = TabManager::new();
+    let new_id = tm2.insert_tab(tab_state, None);
+    assert_eq!(tm2.tabs().len(), 1);
+    assert_eq!(tm2.tabs()[0].id, new_id);
+    assert_eq!(tm2.tabs()[0].url, "https://tab1.com");
+    assert_eq!(tm2.active_tab_id(), Some(new_id));
+}
+
+#[test]
+fn test_tab_manager_update_url_title_and_favicon() {
+    let mut tm = TabManager::new();
+    let id = tm.create_tab("https://initial.com", 100);
+
+    tm.update_url(id, "https://updated.com".to_string());
+    tm.update_title(id, "Updated Title".to_string());
+    tm.update_favicon(id, Some("https://updated.com/favicon.ico".to_string()));
+
+    let tab = tm.tabs().iter().find(|t| t.id == id).unwrap();
+    assert_eq!(tab.url, "https://updated.com");
+    assert_eq!(tab.title, "Updated Title");
+    assert_eq!(tab.favicon_uri, Some("https://updated.com/favicon.ico".to_string()));
+}
+
+#[test]
+fn test_settings_search_url_template_fallback() {
+    let mut settings = Settings::default();
+    settings.search_engine = "unknown_engine".to_string();
+
+    assert_eq!(settings.search_url_template(), "https://duckduckgo.com/?q=%s");
+}
+
+#[test]
+fn test_settings_feature_flags_json_patching() {
+    let mut settings = Settings::default();
+    assert!(settings.features.enable_find_in_page);
+
+    // Patch enable_find_in_page to false
+    let patch = serde_json::json!({
+        "features": {
+            "enable_find_in_page": false,
+            "enable_downloads_manager": false
+        }
+    });
+
+    settings.update_from_json(&patch);
+    assert!(!settings.features.enable_find_in_page);
+    assert!(!settings.features.enable_downloads_manager);
+    // Other flags should remain intact
+    assert!(settings.features.enable_link_preview);
+}
+
+#[test]
+fn test_updater_run_local_command() {
+    use evergreen_core::updater::run_local_command;
+
+    #[cfg(windows)]
+    let res = run_local_command("cmd /C echo evergreen_test_ok");
+    #[cfg(not(windows))]
+    let res = run_local_command("echo evergreen_test_ok");
+
+    assert!(res.is_ok());
+    let output = res.unwrap();
+    assert!(output.success);
+    assert!(output.stdout.contains("evergreen_test_ok"));
+}
+
+#[test]
+fn test_plugin_registry_feature_plugin_dynamic() {
+    use evergreen_core::plugins::{FeaturePlugin, PluginMetadata, PluginRegistry};
+
+    let mut registry = PluginRegistry::new();
+    let meta = PluginMetadata {
+        id: "zoom_plugin".to_string(),
+        name: "Zoom Controls".to_string(),
+        version: "1.0.0".to_string(),
+        description: "Dynamic zoom".to_string(),
+        author: "Evergreen".to_string(),
+        is_core: false,
+        enabled_by_default: true,
+    };
+
+    let plugin = FeaturePlugin::new(meta, |s| s.features.enable_zoom_controls);
+    registry.register(plugin);
+
+    let mut settings = Settings::default();
+    settings.features.enable_zoom_controls = true;
+    assert_eq!(registry.enabled_plugins(&settings).len(), 1);
+
+    settings.features.enable_zoom_controls = false;
+    assert_eq!(registry.enabled_plugins(&settings).len(), 0);
+}
+
+
 

@@ -21,66 +21,8 @@ pub fn create_bounds(x: f64, y: f64, width: f64, height: f64) -> Rect {
     }
 }
 
-/// Normalize an omnibox input string into a valid HTTP/HTTPS URL or search engine query.
-pub fn normalize_url(input: &str, search_template: &str) -> Result<String, String> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() || trimmed == "about:home" || trimmed == "about:newtab" {
-        return Ok("evergreen://newtab".to_string());
-    }
+pub use evergreen_core::tabs::normalize_url;
 
-    if trimmed == "about:blank" {
-        return Ok(trimmed.to_string());
-    }
-
-    if trimmed == "about:settings" {
-        return Ok("evergreen://settings".to_string());
-    }
-
-    // Internal browser scheme
-    if trimmed.starts_with("evergreen://") {
-        return Ok(trimmed.to_string());
-    }
-
-    // Explicit valid scheme
-    if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
-        return Ok(trimmed.to_string());
-    }
-
-    // Disallowed schemes (security check)
-    if trimmed.starts_with("javascript:")
-        || trimmed.starts_with("file:")
-        || trimmed.starts_with("data:")
-        || trimmed.starts_with("vbscript:")
-    {
-        return Err(format!("Navigation to scheme prohibited: {}", trimmed));
-    }
-
-    // Hostname check: contains dot and no spaces
-    if trimmed.contains('.') && !trimmed.contains(' ') {
-        return Ok(format!("https://{}", trimmed));
-    }
-
-    // Fallback: search query
-    let encoded_query = url_encode(trimmed);
-    Ok(search_template.replace("%s", &encoded_query))
-}
-
-/// Simple percent encoder for search queries
-fn url_encode(input: &str) -> String {
-    let mut result = String::new();
-    for byte in input.bytes() {
-        match byte {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                result.push(byte as char);
-            }
-            b' ' => result.push('+'),
-            _ => {
-                result.push_str(&format!("%{:02X}", byte));
-            }
-        }
-    }
-    result
-}
 
 #[cfg(test)]
 mod tests {

@@ -1810,6 +1810,19 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Elevation check: enforce non-elevated running invariant
     if is_process_elevated() {
+        #[cfg(target_os = "windows")]
+        {
+            use windows::core::w;
+            use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+            unsafe {
+                let _ = MessageBoxW(
+                    None,
+                    w!("Running Evergreen Browser with Administrator privileges is prohibited for security reasons.\n\nPlease launch the browser as a standard user."),
+                    w!("Evergreen Browser - Security Warning"),
+                    MB_OK | MB_ICONERROR,
+                );
+            }
+        }
         eprintln!("SECURITY ERROR: Running as Administrator / elevated is strictly prohibited.");
         std::process::exit(1);
     }
