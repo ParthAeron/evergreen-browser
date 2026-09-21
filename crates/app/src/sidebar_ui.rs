@@ -16,6 +16,7 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
   <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
   <style>
     :root {
+      color-scheme: dark;
       --bg-panel: #1e1e26;
       --bg-card: #272733;
       --bg-card-hover: #313142;

@@ -12,6 +12,7 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
   <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
   <style>
     :root {
+      color-scheme: dark;
       --bg-surface: #181820;
       --bg-card: rgba(255, 255, 255, 0.035);
       --bg-card-hover: rgba(255, 255, 255, 0.05);
@@ -572,28 +573,6 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <span class="val-badge">Zero Traces</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title">Architecture & Developer</div>
-    <div class="card">
-      <div class="row">
-        <div class="row-info">
-          <span class="row-label">Native Shell</span>
-          <span class="row-desc">Lightweight Rust + Win32 child HWND architecture (sub-1MB executable)</span>
-        </div>
-        <div class="row-action">
-          <span class="val-badge">64-bit Native</span>
-        </div>
-      </div>
-      <div class="row">
-        <div class="row-info">
-          <span class="row-label">Local Fork Update</span>
-          <span class="row-desc">Trigger a local source compilation to rebuild and verify Evergreen</span>
-        </div>
-        <div class="row-action">
-          <button class="btn btn-secondary" onclick="sendAction('RunForkUpdate')">Run Fork Update</button>
         </div>
       </div>
     </div>

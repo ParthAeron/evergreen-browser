@@ -14,6 +14,7 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
   <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
   <style>
     :root {
+      color-scheme: dark;
       --bg-gradient: radial-gradient(circle at 50% 25%, #22222e 0%, #16161d 100%);
       --surface-card: rgba(255, 255, 255, 0.04);
       --border-subtle: rgba(255, 255, 255, 0.08);

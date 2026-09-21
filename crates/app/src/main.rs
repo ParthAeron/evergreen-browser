@@ -404,6 +404,7 @@ impl WindowContext {
                 if *id == target_id {
                     let _ = wv.set_visible(true);
                     accelerator::wake_webview(wv);
+                    accelerator::focus_webview(wv);
                 } else {
                     let _ = wv.set_visible(false);
                 }
@@ -574,11 +575,26 @@ impl BrowserApp {
             use windows::Win32::Foundation::{COLORREF, HWND};
             use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
+            #[link(name = "dwmapi")]
+            extern "system" {
+                fn DwmSetWindowAttribute(
+                    hwnd: isize,
+                    dwAttribute: u32,
+                    pvAttribute: *const std::ffi::c_void,
+                    cbAttribute: u32,
+                ) -> i32;
+            }
+
             if let Ok(handle) = window.window_handle() {
                 if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
                     let hwnd = HWND(win32_handle.hwnd.get() as _);
                     let dark_brush = unsafe { CreateSolidBrush(COLORREF(0x00201818)) }; // RGB(24, 24, 32)
                     let _ = unsafe { SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, dark_brush.0 as isize) };
+
+                    let dark_mode: i32 = 1;
+                    let _ = unsafe { DwmSetWindowAttribute(hwnd.0 as _, 20, &dark_mode as *const _ as _, 4) };
+                    let caption_color: u32 = 0x00201818;
+                    let _ = unsafe { DwmSetWindowAttribute(hwnd.0 as _, 35, &caption_color as *const _ as _, 4) };
                 }
             }
         }
@@ -626,12 +642,7 @@ impl BrowserApp {
             Err(e) => eprintln!("Failed to create chrome webview: {:?}", e),
         }
 
-        // Pre-warm sidebar webview in background (hidden) so 3-dot menu opens instantly
-        let _ = win_ctx.ensure_sidebar_webview(self.proxy.clone());
-        if let Some(sidebar) = &win_ctx.sidebar_webview {
-            let _ = sidebar.set_visible(false);
-        }
-
+        // Sidebar webview is lazily instantiated on demand in open_sidebar()
         self.windows.insert(win_id, win_ctx);
 
         let target_url = initial_url.or_else(|| {
@@ -878,8 +889,12 @@ impl BrowserApp {
 
             if let Some(target_id) = target_win_id {
                 self.handle_create_tab(target_id, Some(tab_state.url));
-            } else {
-                self.create_browser_window(event_loop, Some(tab_state.url));
+            } else if let Some(new_win_id) = self.create_browser_window(event_loop, Some(tab_state.url)) {
+                if let (Some(sx), Some(sy)) = (screen_x, screen_y) {
+                    if let Some(new_win) = self.windows.get(&new_win_id) {
+                        new_win.window.set_outer_position(winit::dpi::LogicalPosition::new((sx - 200.0).max(0.0), (sy - 20.0).max(0.0)));
+                    }
+                }
             }
 
             let should_close_source = if let Some(win_ctx) = self.windows.get_mut(&source_win_id) {
@@ -1287,7 +1302,7 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
             }
             BrowserEvent::TabNavigated(win_id, tab_id, url) => {
-                if url.starts_with("data:text/html") {
+                if url.starts_with("data:text/html") || url == "about:blank" || url == "aboutblank" {
                     return;
                 }
                 if let Some(win) = self.windows.get_mut(&win_id) {

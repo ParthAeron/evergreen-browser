@@ -54,9 +54,7 @@ pub fn resolve_permission(_permission_id: u64, _allow: bool) {}
 #[cfg(target_os = "windows")]
 pub fn wake_webview(wv: &WebView) {
     use wry::WebViewExtWindows;
-    use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2_3, COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC,
-    };
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;
     use windows::core::Interface;
 
     let controller = wv.controller();
@@ -69,11 +67,22 @@ pub fn wake_webview(wv: &WebView) {
             }
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+pub fn focus_webview(wv: &WebView) {
+    use wry::WebViewExtWindows;
+    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC;
+
+    let controller = wv.controller();
     let _ = unsafe { controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC) };
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn wake_webview(_wv: &WebView) {}
+
+#[cfg(not(target_os = "windows"))]
+pub fn focus_webview(_wv: &WebView) {}
 
 #[cfg(target_os = "windows")]
 pub fn attach_accelerator_keys(
@@ -259,7 +268,7 @@ pub fn attach_navigation_events(
             let mut uri_pwstr = windows::core::PWSTR::null();
             if unsafe { core_history.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
                 let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
-                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
+                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") && uri_str != "about:blank" && uri_str != "aboutblank" {
                     let _ = proxy_history.send_event(crate::BrowserEvent::TabNavigated(window_id, tab_id, uri_str));
                 }
             }
@@ -288,7 +297,7 @@ pub fn attach_navigation_events(
             let mut uri_pwstr = windows::core::PWSTR::null();
             if unsafe { core_source.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
                 let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
-                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
+                if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") && uri_str != "about:blank" && uri_str != "aboutblank" {
                     let _ = proxy_source.send_event(crate::BrowserEvent::TabNavigated(window_id, tab_id, uri_str));
                 }
             }

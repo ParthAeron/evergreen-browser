@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="data:image/png;base64,{{LOGO_BASE64}}">
   <style>
     :root {
+      color-scheme: dark;
       --bg-chrome: #1e1e26;
       --bg-tab: #272733;
       --bg-tab-active: #141419;
@@ -120,11 +121,13 @@
     }
 
     .tab.drag-over-left {
-      border-left: 2px solid var(--accent-blue) !important;
+      border-left: 3px solid #388bfd !important;
+      box-shadow: -3px 0 8px rgba(56, 139, 253, 0.5) !important;
     }
 
     .tab.drag-over-right {
-      border-right: 2px solid var(--accent-blue) !important;
+      border-right: 3px solid #388bfd !important;
+      box-shadow: 3px 0 8px rgba(56, 139, 253, 0.5) !important;
     }
 
     .tab-favicon {
@@ -216,11 +219,26 @@
       justify-content: center;
       background: transparent;
       border: none;
+      outline: none;
       color: var(--text-muted);
       border-radius: 6px;
       cursor: pointer;
       flex-shrink: 0;
       transition: background 0.1s ease, color 0.1s ease, transform 0.1s ease;
+    }
+
+    button:focus,
+    .nav-btn:focus,
+    .tab-add-btn:focus,
+    .omnibox-lock-btn:focus {
+      outline: none;
+    }
+
+    .nav-btn:focus-visible,
+    .tab-add-btn:focus-visible,
+    .omnibox-lock-btn:focus-visible {
+      outline: 1.5px solid var(--accent);
+      outline-offset: 1px;
     }
 
     .nav-btn:hover:not(:disabled) {
@@ -351,11 +369,13 @@
     }
 
     .tab.drag-over-left {
-      border-left: 2px solid var(--accent-blue) !important;
+      border-left: 3px solid #388bfd !important;
+      box-shadow: -3px 0 8px rgba(56, 139, 253, 0.5) !important;
     }
 
     .tab.drag-over-right {
-      border-right: 2px solid var(--accent-blue) !important;
+      border-right: 3px solid #388bfd !important;
+      box-shadow: 3px 0 8px rgba(56, 139, 253, 0.5) !important;
     }
 
     /* Zoom Badge & Dialog */
@@ -1117,10 +1137,11 @@
           closeEl.onclick = (ev) => closeTab(tab.id, ev);
           tabEl.appendChild(closeEl);
 
-          container.appendChild(tabEl);
+          // container.appendChild will be called for all tabs below to maintain exact DOM ordering
         }
 
         tabEl.dataset.index = index;
+        container.appendChild(tabEl);
 
         if (isActive) {
           tabEl.classList.add('active');
@@ -1152,15 +1173,29 @@
             displayTitle = 'Settings';
           }
           titleEl.textContent = displayTitle;
-          titleEl.title = displayTitle;
+
+          let shortcutNum = (index < 8) ? (index + 1) : (index === state.tabs.length - 1 ? 9 : null);
+          let shortcutStr = shortcutNum ? ` (Ctrl+${shortcutNum})` : '';
+          tabEl.title = `${displayTitle}${shortcutStr}`;
+          titleEl.title = tabEl.title;
+          if (shortcutNum) {
+            tabEl.setAttribute('aria-keyshortcuts', `Control+${shortcutNum}`);
+          } else {
+            tabEl.removeAttribute('aria-keyshortcuts');
+          }
         }
 
         if (isActive) {
           const omnibox = document.getElementById('omnibox');
           if (!tab.url.startsWith('data:text/html')) {
             if (isTabSwitch || omnibox.dataset.lastSyncedUrl !== tab.url || document.activeElement !== omnibox) {
-              omnibox.value = tab.url;
-              omnibox.dataset.lastSyncedUrl = tab.url;
+              if (tab.url === 'evergreen://newtab' || tab.url === 'about:blank' || tab.url === 'aboutblank') {
+                omnibox.value = '';
+                omnibox.dataset.lastSyncedUrl = tab.url;
+              } else {
+                omnibox.value = tab.url;
+                omnibox.dataset.lastSyncedUrl = tab.url;
+              }
             }
           }
 
