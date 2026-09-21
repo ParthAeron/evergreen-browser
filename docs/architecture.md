@@ -132,16 +132,26 @@ Inactive tabs enter low-memory states automatically to prevent background resour
 stateDiagram-v2
     [*] --> Active: User opens tab
     Active --> Inactive: User switches to another tab
-    Inactive --> Active: User clicks tab / presses shortcut
+    Inactive --> Active: User clicks tab
 
-    Inactive --> Suspending: Inactive for 300 seconds (5 min)
-    note right of Suspending: Audio playing tabs are exempt
+    Inactive --> Suspending: Inactivity reaches 300s
+    note right of Suspending
+        Tabs playing audio
+        are exempt from sleep
+    end note
     
-    Suspending --> Suspended: Call ICoreWebView2::TrySuspendAsync()
-    note right of Suspended: Target memory level set to LOW<br>Render caches released<br>JavaScript timers halted
+    Suspending --> Suspended: Invoke TrySuspendAsync
+    note right of Suspended
+        Target memory set to LOW
+        Render buffers released
+        JavaScript timers halted
+    end note
 
     Suspended --> Active: User clicks tab
-    note right of Active: State restored immediately<br>No network document reload
+    note right of Active
+        State restored immediately
+        No network reload required
+    end note
 ```
 
 - Inactive background tabs invoke `ICoreWebView2::TrySuspendAsync()` after 5 minutes without user interaction.
