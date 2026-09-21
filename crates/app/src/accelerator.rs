@@ -67,6 +67,10 @@ pub fn attach_accelerator_keys(
                                 shortcut = Some("Ctrl+F");
                                 handled = true;
                             }
+                            0x4A => { // 'J'
+                                shortcut = Some("Ctrl+J");
+                                handled = true;
+                            }
                             0x50 => { // 'P'
                                 shortcut = Some("Ctrl+P");
                                 handled = true;
@@ -274,7 +278,167 @@ pub fn attach_navigation_events(
         }));
         let mut token_nw = Default::default();
         let _ = unsafe { core.add_NewWindowRequested(&new_window_handler, &mut token_nw) };
+
+        // 5. Site Permission Requested
+        let proxy_perm = proxy.clone();
+        let perm_handler = webview2_com::PermissionRequestedEventHandler::create(Box::new(move |_sender, args| {
+            if let Some(args) = args {
+                let mut uri_pwstr = windows::core::PWSTR::null();
+                let _ = unsafe { args.Uri(&mut uri_pwstr) };
+                let uri_str = if !uri_pwstr.is_null() {
+                    unsafe { uri_pwstr.to_string() }.unwrap_or_default()
+                } else {
+                    String::new()
+                };
+                let mut kind = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PERMISSION_KIND(0);
+                let _ = unsafe { args.PermissionKind(&mut kind) };
+                let kind_str = match kind.0 {
+                    1 => "Microphone",
+                    2 => "Camera",
+                    3 => "Geolocation",
+                    4 => "Notifications",
+                    5 => "Other Sensors",
+                    6 => "Clipboard Read",
+                    _ => "Site Permission",
+                };
+                let host = crate::extract_host(&uri_str).unwrap_or_else(|| uri_str.clone());
+                let _ = proxy_perm.send_event(crate::BrowserEvent::PermissionPrompt {
+                    permission_id: 1,
+                    origin: host,
+                    permission_kind: kind_str.to_string(),
+                });
+            }
+            Ok(())
+        }));
+        let mut token_p = Default::default();
+        let _ = unsafe { core.add_PermissionRequested(&perm_handler, &mut token_p) };
+
+        // 6. Download Starting with Save As prompt and progress tracking
+        use windows::core::Interface;
+        if let Ok(core4) = core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_4>() {
+            let proxy_dl = proxy.clone();
+            let dl_handler = webview2_com::DownloadStartingEventHandler::create(Box::new(move |_sender, args| {
+                if let Some(args) = args {
+                    if let Ok(op) = unsafe { args.DownloadOperation() } {
+                        let mut result_path_pwstr = windows::core::PWSTR::null();
+                        let _ = unsafe { op.ResultFilePath(&mut result_path_pwstr) };
+                        let mut total_bytes = 0i64;
+                        let _ = unsafe { op.TotalBytesToReceive(&mut total_bytes) };
+
+                        let filename = if !result_path_pwstr.is_null() {
+                            let path_str = unsafe { result_path_pwstr.to_string() }.unwrap_or_default();
+                            std::path::Path::new(&path_str)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "download".to_string())
+                        } else {
+                            "download".to_string()
+                        };
+
+                        let save_path = show_save_file_dialog(&filename);
+                        if let Some(chosen_path) = save_path {
+                            let wpath: Vec<u16> = chosen_path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+                            let _ = unsafe { args.SetResultFilePath(windows::core::PCWSTR(wpath.as_ptr())) };
+                            let _ = unsafe { args.SetHandled(true) };
+
+                            let proxy_bytes = proxy_dl.clone();
+                            let dl_fn = filename.clone();
+                            let op_bytes = op.clone();
+                            let bytes_handler = webview2_com::BytesReceivedChangedEventHandler::create(Box::new(move |_sender, _args| {
+                                let mut received = 0i64;
+                                let mut total = 0i64;
+                                unsafe {
+                                    let _ = op_bytes.BytesReceived(&mut received);
+                                    let _ = op_bytes.TotalBytesToReceive(&mut total);
+                                }
+                                let _ = proxy_bytes.send_event(crate::BrowserEvent::DownloadProgress {
+                                    download_id: 1,
+                                    filename: dl_fn.clone(),
+                                    received_bytes: received,
+                                    total_bytes: total,
+                                    state: "InProgress".to_string(),
+                                });
+                                Ok(())
+                            }));
+                            let mut token_b = Default::default();
+                            let _ = unsafe { op.add_BytesReceivedChanged(&bytes_handler, &mut token_b) };
+
+                            let proxy_state = proxy_dl.clone();
+                            let dl_fn2 = filename.clone();
+                            let op_state = op.clone();
+                            let state_handler = webview2_com::StateChangedEventHandler::create(Box::new(move |_sender, _args| {
+                                let mut state = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_DOWNLOAD_STATE(0);
+                                let mut received = 0i64;
+                                let mut total = 0i64;
+                                unsafe {
+                                    let _ = op_state.State(&mut state);
+                                    let _ = op_state.BytesReceived(&mut received);
+                                    let _ = op_state.TotalBytesToReceive(&mut total);
+                                }
+                                let state_str = match state.0 {
+                                    0 => "InProgress",
+                                    1 => "Interrupted",
+                                    2 => "Completed",
+                                    _ => "InProgress",
+                                };
+                                let _ = proxy_state.send_event(crate::BrowserEvent::DownloadProgress {
+                                    download_id: 1,
+                                    filename: dl_fn2.clone(),
+                                    received_bytes: received,
+                                    total_bytes: total,
+                                    state: state_str.to_string(),
+                                });
+                                Ok(())
+                            }));
+                            let mut token_st = Default::default();
+                            let _ = unsafe { op.add_StateChanged(&state_handler, &mut token_st) };
+
+                            let _ = proxy_dl.send_event(crate::BrowserEvent::DownloadProgress {
+                                download_id: 1,
+                                filename,
+                                received_bytes: 0,
+                                total_bytes,
+                                state: "InProgress".to_string(),
+                            });
+                        } else {
+                            let _ = unsafe { args.SetCancel(true) };
+                            let _ = unsafe { args.SetHandled(true) };
+                        }
+                    }
+                }
+                Ok(())
+            }));
+            let mut token_dl = Default::default();
+            let _ = unsafe { core4.add_DownloadStarting(&dl_handler, &mut token_dl) };
+        }
     }
+}
+
+#[cfg(target_os = "windows")]
+pub fn show_save_file_dialog(default_filename: &str) -> Option<std::path::PathBuf> {
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+    use windows::Win32::UI::Shell::{FileSaveDialog, IFileSaveDialog, SIGDN_FILESYSPATH};
+    use windows::core::PCWSTR;
+
+    unsafe {
+        let dialog: IFileSaveDialog = CoCreateInstance(&FileSaveDialog, None, CLSCTX_ALL).ok()?;
+        let wname: Vec<u16> = default_filename.encode_utf16().chain(std::iter::once(0)).collect();
+        let _ = dialog.SetFileName(PCWSTR(wname.as_ptr()));
+        let title: Vec<u16> = "Save Download As".encode_utf16().chain(std::iter::once(0)).collect();
+        let _ = dialog.SetTitle(PCWSTR(title.as_ptr()));
+
+        if dialog.Show(None).is_ok() {
+            if let Ok(item) = dialog.GetResult() {
+                if let Ok(path_pwstr) = item.GetDisplayName(SIGDN_FILESYSPATH) {
+                    if !path_pwstr.is_null() {
+                        let path_str = path_pwstr.to_string().ok()?;
+                        return Some(std::path::PathBuf::from(path_str));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(not(target_os = "windows"))]

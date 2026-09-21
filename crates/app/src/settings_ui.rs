@@ -203,6 +203,54 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       background: #1e1e28;
       color: var(--text-main);
     }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .2s;
+      border-radius: 22px;
+      border: 1px solid var(--border-card);
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
   </style>
 </head>
 <body>
@@ -243,11 +291,188 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="searchEngineSelect" class="select-box" onchange="onSearchEngineChange(this.value)">
-            <option value="duckduckgo">DuckDuckGo</option>
-            <option value="google">Google</option>
-            <option value="bing">Bing</option>
-            <option value="brave">Brave Search</option>
-            <option value="ecosia">Ecosia</option>
+            <option id="opt_duckduckgo" value="duckduckgo">DuckDuckGo</option>
+            <option id="opt_google" value="google">Google</option>
+            <option id="opt_bing" value="bing">Bing</option>
+            <option id="opt_brave" value="brave">Brave Search</option>
+            <option id="opt_ecosia" value="ecosia">Ecosia</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Downloads</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Ask Where to Save</span>
+          <span class="row-desc">Always ask for confirmation and destination folder before starting any download</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="askWhereToSaveToggle" checked onchange="onToggleChange('askWhereToSave', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Show Download Progress</span>
+          <span class="row-desc">Display animated circular progress ring in the top toolbar</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="showProgressToolbarToggle" checked onchange="onToggleChange('showProgressToolbar', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Default Location</span>
+          <span class="row-desc" id="downloadFolderDesc">{{DEFAULT_DOWNLOAD_FOLDER}}</span>
+        </div>
+        <div class="row-action">
+          <button class="btn btn-secondary" onclick="sendAction('ChangeDownloadFolder')">Browse...</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Tabs & Windows</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Tab Drag Reordering</span>
+          <span class="row-desc">Reorder tabs smoothly along the tab strip by dragging and dropping</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="tabReorderingToggle" checked onchange="onToggleChange('tabReordering', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Tab Tear-Off to Window</span>
+          <span class="row-desc">Detach a tab into an independent browser window when dragged outside the top bar</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="tabTearoffToggle" checked onchange="onToggleChange('tabTearoff', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Appearance & Zoom</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Default Page Zoom</span>
+          <span class="row-desc">Set the default scale factor for rendered web content</span>
+        </div>
+        <div class="row-action">
+          <select id="defaultZoomSelect" class="select-box" onchange="onDefaultZoomChange(this.value)">
+            <option value="0.75">75%</option>
+            <option value="0.9">90%</option>
+            <option value="1.0" selected>100% (Default)</option>
+            <option value="1.1">110%</option>
+            <option value="1.25">125%</option>
+            <option value="1.5">150%</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Show Zoom Indicator</span>
+          <span class="row-desc">Display zoom percentage badge on the right side of the omnibox when zoomed</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="showZoomBadgeToggle" checked onchange="onToggleChange('showZoomBadge', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Interactive Link Preview (Peek)</span>
+          <span class="row-desc">Preview link destination in a floating preview card on hover or shortcut</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="enableLinkPreviewToggle" checked onchange="onToggleChange('enableLinkPreview', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Bottom Status URL Preview</span>
+          <span class="row-desc">Show full target address in bottom-left status tooltip when hovering links</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="showStatusPreviewToggle" checked onchange="onToggleChange('showStatusPreview', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Site Permissions</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Location Access</span>
+          <span class="row-desc">Permission policy when sites request device geolocation</span>
+        </div>
+        <div class="row-action">
+          <select id="permLocationSelect" class="select-box" onchange="onPermissionChange('location', this.value)">
+            <option value="ask" selected>Always Ask</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Camera Access</span>
+          <span class="row-desc">Permission policy when sites request video capture</span>
+        </div>
+        <div class="row-action">
+          <select id="permCameraSelect" class="select-box" onchange="onPermissionChange('camera', this.value)">
+            <option value="ask" selected>Always Ask</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Microphone Access</span>
+          <span class="row-desc">Permission policy when sites request audio capture</span>
+        </div>
+        <div class="row-action">
+          <select id="permMicrophoneSelect" class="select-box" onchange="onPermissionChange('microphone', this.value)">
+            <option value="ask" selected>Always Ask</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Notifications</span>
+          <span class="row-desc">Permission policy when sites request web notifications</span>
+        </div>
+        <div class="row-action">
+          <select id="permNotificationsSelect" class="select-box" onchange="onPermissionChange('notifications', this.value)">
+            <option value="ask" selected>Always Ask</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
           </select>
         </div>
       </div>
@@ -328,6 +553,36 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
     }
 
+    function onToggleChange(setting, value) {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({
+          action: 'SaveSettings',
+          payload: { settings_json: JSON.stringify({ [setting]: value }) }
+        }));
+        showStatus('Updated ' + setting + ' to ' + value);
+      }
+    }
+
+    function onDefaultZoomChange(zoom) {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({
+          action: 'SaveSettings',
+          payload: { settings_json: JSON.stringify({ default_zoom_level: parseFloat(zoom) }) }
+        }));
+        showStatus('Default zoom set to ' + Math.round(parseFloat(zoom) * 100) + '%');
+      }
+    }
+
+    function onPermissionChange(perm, value) {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({
+          action: 'SaveSettings',
+          payload: { settings_json: JSON.stringify({ permissions: { [perm]: value } }) }
+        }));
+        showStatus('Permission for ' + perm + ' set to ' + value);
+      }
+    }
+
     window.__syncSearchEngine = function(engine) {
       const select = document.getElementById('searchEngineSelect');
       if (select && engine) {
@@ -340,7 +595,6 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       if (el) el.textContent = version || 'v153.0.4234.32 (Active)';
     };
 
-    // Auto-detect version if injected into window
     if (window.__runtimeVersion) {
       window.__syncEngineInfo(window.__runtimeVersion);
     }
@@ -349,14 +603,39 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 </html>
 "#;
 
-pub fn get_settings_html(runtime_ver: &str, current_engine: &str) -> String {
+use evergreen_core::settings::Settings;
+
+pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
+    let download_dir_str = settings.downloads.default_folder.to_string_lossy();
     let mut html = SETTINGS_TEMPLATE
         .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
-        .replace("Detecting...", &format!("v{} (Active)", runtime_ver));
+        .replace("Detecting...", &format!("v{} (Active)", runtime_ver))
+        .replace("{{DEFAULT_DOWNLOAD_FOLDER}}", &download_dir_str);
 
-    let engine = current_engine.to_lowercase();
-    let target = format!("value=\"{}\"", engine);
-    let replacement = format!("value=\"{}\" selected", engine);
-    html = html.replace(&target, &replacement);
+    let engine = settings.search_engine.to_lowercase();
+    html = html.replace(&format!("id=\"opt_{}\"", engine), &format!("id=\"opt_{}\" selected", engine));
+
+    if !settings.downloads.ask_where_to_save {
+        html = html.replace("id=\"askWhereToSaveToggle\" checked", "id=\"askWhereToSaveToggle\"");
+    }
+    if !settings.downloads.show_progress_toolbar {
+        html = html.replace("id=\"showProgressToolbarToggle\" checked", "id=\"showProgressToolbarToggle\"");
+    }
+    if !settings.tabs.enable_tab_reordering {
+        html = html.replace("id=\"tabReorderingToggle\" checked", "id=\"tabReorderingToggle\"");
+    }
+    if !settings.tabs.enable_tab_tearoff {
+        html = html.replace("id=\"tabTearoffToggle\" checked", "id=\"tabTearoffToggle\"");
+    }
+    if !settings.appearance.show_zoom_badge {
+        html = html.replace("id=\"showZoomBadgeToggle\" checked", "id=\"showZoomBadgeToggle\"");
+    }
+    if !settings.appearance.enable_link_preview {
+        html = html.replace("id=\"enableLinkPreviewToggle\" checked", "id=\"enableLinkPreviewToggle\"");
+    }
+    if !settings.appearance.show_status_preview {
+        html = html.replace("id=\"showStatusPreviewToggle\" checked", "id=\"showStatusPreviewToggle\"");
+    }
+
     html
 }

@@ -178,5 +178,19 @@ impl TabManager {
     pub fn pop_last_closed(&mut self) -> Option<String> {
         self.closed_history.pop()
     }
+
+    pub fn reorder_tab(&mut self, from_idx: usize, to_idx: usize) -> bool {
+        if from_idx < self.tabs.len() && to_idx < self.tabs.len() && from_idx != to_idx {
+            let tab = self.tabs.remove(from_idx);
+            self.tabs.insert(to_idx, tab);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_tab_by_id(&self, id: TabId) -> Option<&TabState> {
+        self.tabs.iter().find(|t| t.id == id)
+    }
 }
 

@@ -148,18 +148,6 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
       border-radius: 10px;
     }
 
-    /* Footer / Specs */
-    .footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      max-width: 800px;
-      border-top: 1px solid var(--border-subtle);
-      padding-top: 20px;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
   </style>
 </head>
 <body>
@@ -186,10 +174,6 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
       <span class="search-engine-badge">{{SEARCH_ENGINE_NAME}}</span>
     </div>
   </div>
-
-  <footer class="footer">
-    <span>Evergreen Browser</span>
-  </footer>
 
   <script>
     const searchBox = document.getElementById('homeSearch');

@@ -16,6 +16,10 @@ pub struct Settings {
     pub search_engine: String,
     /// Download behavior
     pub downloads: DownloadSettings,
+    /// Tab behavior and dragging
+    pub tabs: TabSettings,
+    /// Site permissions
+    pub permissions: PermissionSettings,
     /// App update commands
     pub updates: UpdateSettings,
 }
@@ -52,14 +56,46 @@ pub struct AppearanceSettings {
     pub theme: String,
     /// UI density: "comfortable", "compact"
     pub density: String,
+    /// Default page zoom level (e.g. 1.0 = 100%)
+    pub default_zoom_level: f64,
+    /// Show zoom indicator badge on address bar when zoomed
+    pub show_zoom_badge: bool,
+    /// Enable interactive link preview card (Peek)
+    pub enable_link_preview: bool,
+    /// Show destination URL in bottom status bar on hover
+    pub show_status_preview: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadSettings {
     /// Prompt for save destination on each download
     pub ask_where_to_save: bool,
+    /// Show download progress ring in toolbar
+    pub show_progress_toolbar: bool,
     /// Default download folder
     pub default_folder: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TabSettings {
+    /// Enable tab drag-and-drop horizontal reordering
+    pub enable_tab_reordering: bool,
+    /// Enable detaching tab into a new window when dragged outside the tab strip
+    pub enable_tab_tearoff: bool,
+    /// Confirm before closing multiple tabs
+    pub warn_on_close_tabs: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PermissionSettings {
+    /// Location permission policy: "ask", "allow", "block"
+    pub location: String,
+    /// Camera permission policy: "ask", "allow", "block"
+    pub camera: String,
+    /// Microphone permission policy: "ask", "allow", "block"
+    pub microphone: String,
+    /// Notifications permission policy: "ask", "allow", "block"
+    pub notifications: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -90,11 +126,27 @@ impl Default for Settings {
             appearance: AppearanceSettings {
                 theme: "system".to_string(),
                 density: "comfortable".to_string(),
+                default_zoom_level: 1.0,
+                show_zoom_badge: true,
+                enable_link_preview: true,
+                show_status_preview: true,
             },
             search_engine: "duckduckgo".to_string(),
             downloads: DownloadSettings {
-                ask_where_to_save: false,
+                ask_where_to_save: true,
+                show_progress_toolbar: true,
                 default_folder: default_download_dir,
+            },
+            tabs: TabSettings {
+                enable_tab_reordering: true,
+                enable_tab_tearoff: true,
+                warn_on_close_tabs: true,
+            },
+            permissions: PermissionSettings {
+                location: "ask".to_string(),
+                camera: "ask".to_string(),
+                microphone: "ask".to_string(),
+                notifications: "ask".to_string(),
             },
             updates: UpdateSettings {
                 auto_check_app_updates: false,

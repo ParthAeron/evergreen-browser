@@ -38,6 +38,31 @@ pub enum UiToHostMessage {
     OpenCertificateDialog { host: String },
     /// Real-time client-side lifecycle navigation event (e.g. bfcache, popstate, pushState)
     PageNavigated { url: String, title: String },
+    /// Tab manipulation
+    ReorderTab { from_index: usize, to_index: usize },
+    DetachTabToNewWindow { tab_id: TabId },
+    /// Zoom actions
+    SetZoom { factor: f64 },
+    ZoomIn,
+    ZoomOut,
+    ZoomReset,
+    /// Find in page
+    FindInPage { query: String, forward: bool },
+    CloseFindInPage,
+    /// Downloads
+    OpenDownloads,
+    DownloadConfirm { download_id: u64, accept: bool, save_path: Option<String> },
+    CancelDownload { download_id: u64 },
+    /// Site permissions
+    PermissionResponse { permission_id: u64, allow: bool },
+    /// Link preview
+    TriggerLinkPreview {
+        url: String,
+        #[serde(default)]
+        peek: bool,
+    },
+    /// Find in page result reported from active webview
+    FindResult { current: usize, total: usize },
     /// Settings actions
     OpenSettings,
     SetSearchEngine { engine: String },
@@ -119,5 +144,39 @@ pub enum HostToUiMessage {
     /// Default search engine sync
     SearchEngineSync {
         engine: String,
+    },
+    /// Zoom level sync
+    ZoomSync {
+        factor: f64,
+    },
+    /// Find in page search results
+    FindResult {
+        current: usize,
+        total: usize,
+    },
+    /// Download confirmation prompt
+    DownloadPrompt {
+        download_id: u64,
+        filename: String,
+        total_bytes: i64,
+    },
+    /// Download progress update
+    DownloadProgress {
+        download_id: u64,
+        filename: String,
+        received_bytes: i64,
+        total_bytes: i64,
+        state: String,
+    },
+    /// Permission prompt request
+    PermissionPrompt {
+        permission_id: u64,
+        origin: String,
+        permission_kind: String,
+    },
+    /// Link preview result
+    LinkPreviewReady {
+        url: String,
+        title: String,
     },
 }

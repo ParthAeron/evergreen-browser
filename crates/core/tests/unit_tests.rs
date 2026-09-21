@@ -97,6 +97,20 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::CloseSidebar,
         UiToHostMessage::OpenCertificateDialog { host: "github.com".to_string() },
         UiToHostMessage::PageNavigated { url: "https://test.com".to_string(), title: "Test".to_string() },
+        UiToHostMessage::ReorderTab { from_index: 0, to_index: 2 },
+        UiToHostMessage::DetachTabToNewWindow { tab_id: TabId(1) },
+        UiToHostMessage::SetZoom { factor: 1.25 },
+        UiToHostMessage::ZoomIn,
+        UiToHostMessage::ZoomOut,
+        UiToHostMessage::ZoomReset,
+        UiToHostMessage::FindInPage { query: "rust".to_string(), forward: true },
+        UiToHostMessage::CloseFindInPage,
+        UiToHostMessage::OpenDownloads,
+        UiToHostMessage::DownloadConfirm { download_id: 1, accept: true, save_path: Some("C:\\test.bin".to_string()) },
+        UiToHostMessage::CancelDownload { download_id: 1 },
+        UiToHostMessage::PermissionResponse { permission_id: 10, allow: true },
+        UiToHostMessage::TriggerLinkPreview { url: "https://preview.com".to_string(), peek: false },
+        UiToHostMessage::FindResult { current: 1, total: 5 },
         UiToHostMessage::OpenSettings,
         UiToHostMessage::SetSearchEngine { engine: "google".to_string() },
         UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
@@ -121,12 +135,12 @@ fn test_ipc_serde_host_to_ui_all_variants() {
         },
         HostToUiMessage::SidebarStateSync {
             open: true,
-            mode: "security".to_string(),
+            mode: "menu".to_string(),
             security_info: Some(Box::new(evergreen_core::ipc::SecurityInfo {
                 host: "github.com".to_string(),
                 is_secure: true,
                 protocol: "TLS 1.3".to_string(),
-                certificate_status: "Valid & Verified".to_string(),
+                certificate_status: "Valid".to_string(),
                 cipher: "256-bit encryption (AES-GCM)".to_string(),
                 subject: "CN=github.com".to_string(),
                 issuer: "CN=Sectigo".to_string(),
@@ -155,6 +169,34 @@ fn test_ipc_serde_host_to_ui_all_variants() {
         },
         HostToUiMessage::SearchEngineSync {
             engine: "google".to_string(),
+        },
+        HostToUiMessage::ZoomSync {
+            factor: 1.25,
+        },
+        HostToUiMessage::FindResult {
+            current: 1,
+            total: 5,
+        },
+        HostToUiMessage::DownloadPrompt {
+            download_id: 42,
+            filename: "installer.exe".to_string(),
+            total_bytes: 1048576,
+        },
+        HostToUiMessage::DownloadProgress {
+            download_id: 42,
+            filename: "installer.exe".to_string(),
+            received_bytes: 524288,
+            total_bytes: 1048576,
+            state: "InProgress".to_string(),
+        },
+        HostToUiMessage::PermissionPrompt {
+            permission_id: 99,
+            origin: "https://meet.google.com".to_string(),
+            permission_kind: "Camera".to_string(),
+        },
+        HostToUiMessage::LinkPreviewReady {
+            url: "https://news.ycombinator.com".to_string(),
+            title: "Hacker News".to_string(),
         },
     ];
 
@@ -209,6 +251,37 @@ fn test_tab_manager_suspension_and_audio() {
 
     tm.set_tab_suspended(tab_id, false);
     assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Inactive);
+}
+
+#[test]
+fn test_tab_manager_reorder() {
+    let mut tm = TabManager::new();
+    let id1 = tm.create_tab("https://tab1.com", 100);
+    let id2 = tm.create_tab("https://tab2.com", 200);
+    let id3 = tm.create_tab("https://tab3.com", 300);
+
+    assert_eq!(tm.tabs()[0].id, id1);
+    assert_eq!(tm.tabs()[1].id, id2);
+    assert_eq!(tm.tabs()[2].id, id3);
+
+    // Reorder: move tab at index 0 to index 2
+    let reordered = tm.reorder_tab(0, 2);
+    assert!(reordered);
+    assert_eq!(tm.tabs()[0].id, id2);
+    assert_eq!(tm.tabs()[1].id, id3);
+    assert_eq!(tm.tabs()[2].id, id1);
+
+    // Reorder back: move tab at index 2 to index 0
+    let reordered2 = tm.reorder_tab(2, 0);
+    assert!(reordered2);
+    assert_eq!(tm.tabs()[0].id, id1);
+    assert_eq!(tm.tabs()[1].id, id2);
+    assert_eq!(tm.tabs()[2].id, id3);
+
+    // Out of bounds returns false
+    assert!(!tm.reorder_tab(0, 99));
+    assert!(!tm.reorder_tab(99, 0));
+    assert!(!tm.reorder_tab(1, 1));
 }
 
 #[test]

@@ -323,6 +323,440 @@
       border-color: var(--border-focus);
       background: var(--bg-omnibox-focus);
     }
+
+    /* Tab Dragging Styles */
+    .tab.dragging {
+      opacity: 0.45;
+      transform: scale(0.96);
+    }
+
+    .tab.drag-over-left {
+      border-left: 2px solid var(--accent-blue) !important;
+    }
+
+    .tab.drag-over-right {
+      border-right: 2px solid var(--accent-blue) !important;
+    }
+
+    /* Zoom Badge & Dialog */
+    .zoom-badge {
+      position: absolute;
+      right: 6px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 3;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+
+    .zoom-badge:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: var(--border-focus);
+    }
+
+    .zoom-dialog {
+      position: absolute;
+      right: 0;
+      top: 36px;
+      background: #1e1e28;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      animation: fadeInDown 0.15s ease;
+    }
+
+    .zoom-dialog-btn {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #272733;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .zoom-dialog-btn:hover {
+      background: #333344;
+    }
+
+    .zoom-dialog-reset {
+      padding: 2px 8px;
+      height: 24px;
+      background: #272733;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .zoom-dialog-reset:hover {
+      background: #333344;
+    }
+
+    /* Downloads Toolbar & Progress Ring */
+    .download-btn {
+      position: relative;
+    }
+
+    .download-ring {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 24px;
+      height: 24px;
+      pointer-events: none;
+      transform: rotate(-90deg);
+    }
+
+    .download-ring-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.1);
+      stroke-width: 2.5;
+    }
+
+    .download-ring-fill {
+      fill: none;
+      stroke: var(--accent-blue);
+      stroke-width: 2.5;
+      stroke-dasharray: 81.68;
+      stroke-dashoffset: 81.68;
+      transition: stroke-dashoffset 0.25s linear;
+    }
+
+    .download-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      background: var(--accent-blue);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      min-width: 14px;
+      height: 14px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+    }
+
+    /* Downloads Shelf Flyout */
+    .downloads-shelf {
+      position: absolute;
+      top: 76px;
+      right: 12px;
+      width: 320px;
+      max-height: 380px;
+      background: #1e1e28;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: fadeInDown 0.15s ease;
+    }
+
+    .downloads-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .downloads-list {
+      padding: 8px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 320px;
+    }
+
+    .download-item {
+      padding: 10px;
+      background: #272733;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    .download-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .download-item-name {
+      font-weight: 600;
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+
+    .download-item-size {
+      color: var(--text-muted);
+    }
+
+    .download-progress-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .download-progress-bar {
+      height: 100%;
+      background: var(--accent-blue);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    /* Find In Page Floating Bar */
+    .find-bar {
+      position: absolute;
+      top: 76px;
+      right: 24px;
+      background: #1e1e28;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      animation: fadeInDown 0.15s ease;
+    }
+
+    .find-input {
+      width: 170px;
+      height: 26px;
+      background: #14141a;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 0 8px;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .find-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .find-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 36px;
+      text-align: center;
+    }
+
+    .find-btn {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .find-btn:hover {
+      background: #2b2b3b;
+      color: var(--text-main);
+    }
+
+    /* Permission Prompt Bar */
+    .permission-bar {
+      position: absolute;
+      top: 76px;
+      left: 16px;
+      background: #1e1e28;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+      z-index: 100;
+      animation: fadeInDown 0.15s ease;
+    }
+
+    .permission-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    .permission-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--accent-blue);
+    }
+
+    .permission-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .permission-btn {
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+
+    .permission-btn.allow {
+      background: var(--accent-green);
+      color: #0b1a13;
+    }
+
+    .permission-btn.allow:hover {
+      background: #4ade80;
+    }
+
+    .permission-btn.block {
+      background: #2b2b3b;
+      color: var(--text-main);
+    }
+
+    .permission-btn.block:hover {
+      background: #38384d;
+    }
+
+    .permission-close {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    /* Status Bar Link Preview Tooltip */
+    .status-preview-bar {
+      position: fixed;
+      bottom: 6px;
+      left: 8px;
+      max-width: 500px;
+      padding: 4px 10px;
+      background: rgba(24, 24, 32, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* Interactive Link Preview (Peek Modal) */
+    .link-preview-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 540px;
+      height: 380px;
+      background: #181820;
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: zoomInModal 0.2s ease;
+    }
+
+    .link-preview-header {
+      height: 38px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: #1e1e28;
+      font-size: 12px;
+    }
+
+    .link-preview-title {
+      font-weight: 500;
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 380px;
+    }
+
+    .link-preview-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .link-preview-frame {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #14141a;
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes zoomInModal {
+      from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -368,7 +802,25 @@
         aria-label="Address and search bar"
         onkeydown="handleOmniboxKey(event)"
       />
+
+      <!-- Zoom Badge & Dialog -->
+      <button class="zoom-badge" id="zoomBadge" onclick="toggleZoomDialog(event)" style="display: none;">100%</button>
+      <div class="zoom-dialog" id="zoomDialog" style="display: none;" onclick="event.stopPropagation()">
+        <button class="zoom-dialog-btn" id="zoomOutBtn" onclick="zoomOut()" title="Zoom out (Ctrl+-)">−</button>
+        <button class="zoom-dialog-reset" onclick="zoomReset()" id="zoomResetBtn" title="Reset zoom (Ctrl+0)">100%</button>
+        <button class="zoom-dialog-btn" id="zoomInBtn" onclick="zoomIn()" title="Zoom in (Ctrl++)">+</button>
+      </div>
     </div>
+
+    <!-- Downloads Toolbar Button -->
+    <button class="nav-btn download-btn" id="btnDownloads" onclick="toggleDownloadsShelf(event)" title="Downloads (Ctrl+J)" aria-label="Downloads">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      <div class="download-badge" id="downloadBadge" style="display: none;">0</div>
+      <svg class="download-ring" id="downloadRing" viewBox="0 0 32 32" style="display: none;">
+        <circle cx="16" cy="16" r="13" class="download-ring-bg"/>
+        <circle cx="16" cy="16" r="13" class="download-ring-fill" id="downloadRingFill"/>
+      </svg>
+    </button>
 
     <!-- 3-Dot Menu Toggle (Toggles WinUI 3 Sidebar Panel) -->
     <button class="nav-btn" id="btnMenu" onclick="toggleMenuPanel(event)" title="Menu" aria-label="Menu">
@@ -380,8 +832,62 @@
     </button>
   </div>
 
+  <!-- Downloads Shelf Flyout -->
+  <div class="downloads-shelf" id="downloadsShelf" style="display: none;" onclick="event.stopPropagation()">
+    <div class="downloads-header">
+      <span>Downloads</span>
+      <button class="find-btn" onclick="clearCompletedDownloads()" title="Clear list">✕</button>
+    </div>
+    <div class="downloads-list" id="downloadsList">
+      <div id="noDownloadsPlaceholder" style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 20px 0;">No active downloads</div>
+    </div>
+  </div>
+
+  <!-- Find In Page Floating Bar -->
+  <div class="find-bar" id="findBar" style="display: none;" onclick="event.stopPropagation()">
+    <input type="text" id="findInput" class="find-input" placeholder="Find in page..." oninput="executeFind(false)" onkeydown="handleFindKey(event)"/>
+    <span class="find-count" id="findCount">0/0</span>
+    <button class="find-btn" onclick="executeFind(false)" title="Previous (Shift+Enter)">▲</button>
+    <button class="find-btn" onclick="executeFind(true)" title="Next (Enter)">▼</button>
+    <button class="find-btn" id="closeFindBarBtn" onclick="closeFindBar()" title="Close (Esc)">✕</button>
+  </div>
+
+  <!-- Permission Prompt Bar -->
+  <div class="permission-bar" id="permissionBar" style="display: none;" onclick="event.stopPropagation()">
+    <div class="permission-info">
+      <svg class="permission-icon" id="permissionIcon" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span class="permission-msg" id="permissionMsg"></span>
+    </div>
+    <div class="permission-actions">
+      <button class="permission-btn allow" id="permissionAllowBtn" onclick="resolvePermission(true)">Allow</button>
+      <button class="permission-btn block" id="permissionBlockBtn" onclick="resolvePermission(false)">Block</button>
+      <button class="permission-close" id="permissionDismissBtn" onclick="dismissPermission()">✕</button>
+    </div>
+  </div>
+
+  <!-- Status Bar Link Preview Tooltip -->
+  <div class="status-preview-bar" id="statusPreviewBar" style="display: none;"></div>
+
+  <!-- Interactive Link Preview (Peek Modal) -->
+  <div class="link-preview-modal" id="linkPreviewModal" style="display: none;" onclick="event.stopPropagation()">
+    <div class="link-preview-header">
+      <span class="link-preview-title" id="linkPreviewTitle">Link Preview</span>
+      <div class="link-preview-actions">
+        <button class="find-btn" id="openPreviewNewTabBtn" onclick="openPreviewInNewTab()" title="Open in New Tab">↗</button>
+        <button class="find-btn" id="closePreviewBtn" onclick="closeLinkPreview()" title="Close">✕</button>
+      </div>
+    </div>
+    <iframe class="link-preview-frame" id="linkPreviewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+
   <script>
     let activeTabId = null;
+    let draggedTabId = null;
+    let draggedTabIndex = null;
 
     function postIpc(action, payload = null) {
       if (window.ipc) {
@@ -458,7 +964,276 @@
       postIpc('ToggleSecurityPanel');
     }
 
-    // Window interface called by Rust host via evaluate_script
+    /* Zoom Management */
+    let currentZoomFactor = 1.0;
+    let zoomHideTimeout = null;
+
+    function updateZoomUI(factor) {
+      currentZoomFactor = factor;
+      const percent = Math.round(factor * 100);
+      const badge = document.getElementById('zoomBadge');
+      const resetBtn = document.getElementById('zoomResetBtn');
+      badge.textContent = percent + '%';
+      if (resetBtn) resetBtn.textContent = percent + '%';
+
+      if (percent !== 100) {
+        badge.style.display = 'block';
+        const dialog = document.getElementById('zoomDialog');
+        dialog.style.display = 'flex';
+        clearTimeout(zoomHideTimeout);
+        zoomHideTimeout = setTimeout(() => {
+          dialog.style.display = 'none';
+        }, 2500);
+      } else {
+        badge.style.display = 'none';
+        document.getElementById('zoomDialog').style.display = 'none';
+      }
+    }
+
+    function toggleZoomDialog(e) {
+      if (e) e.stopPropagation();
+      const dialog = document.getElementById('zoomDialog');
+      const isOpening = dialog.style.display !== 'flex';
+      dialog.style.display = isOpening ? 'flex' : 'none';
+      if (isOpening) {
+        document.getElementById('downloadsShelf').style.display = 'none';
+        document.getElementById('findBar').style.display = 'none';
+      }
+    }
+
+    function zoomIn() { postIpc('ZoomIn'); }
+    function zoomOut() { postIpc('ZoomOut'); }
+    function zoomReset() { postIpc('ZoomReset'); }
+
+    window.__syncZoom = function(factor) {
+      updateZoomUI(factor);
+    };
+
+    /* Downloads Management */
+    const activeDownloads = new Map();
+
+    function toggleDownloadsShelf(e) {
+      if (e) e.stopPropagation();
+      const shelf = document.getElementById('downloadsShelf');
+      const isOpening = shelf.style.display !== 'flex';
+      shelf.style.display = isOpening ? 'flex' : 'none';
+      if (isOpening) {
+        document.getElementById('zoomDialog').style.display = 'none';
+        document.getElementById('findBar').style.display = 'none';
+      }
+    }
+
+    function clearCompletedDownloads() {
+      for (const [id, item] of activeDownloads.entries()) {
+        if (item.state === 'Completed' || item.state === 'Canceled') {
+          activeDownloads.delete(id);
+        }
+      }
+      renderDownloads();
+    }
+
+    function renderDownloads() {
+      const list = document.getElementById('downloadsList');
+      const badge = document.getElementById('downloadBadge');
+      const ring = document.getElementById('downloadRing');
+      const ringFill = document.getElementById('downloadRingFill');
+
+      const activeCount = Array.from(activeDownloads.values()).filter(d => d.state === 'InProgress').length;
+      badge.textContent = activeCount;
+      badge.style.display = activeCount > 0 ? 'flex' : 'none';
+      ring.style.display = activeCount > 0 ? 'block' : 'none';
+
+      if (activeDownloads.size === 0) {
+        list.innerHTML = '<div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 20px 0;">No active downloads</div>';
+        return;
+      }
+
+      let totalReceived = 0;
+      let totalExpected = 0;
+      let html = '';
+
+      for (const [id, item] of activeDownloads.entries()) {
+        totalReceived += item.received;
+        totalExpected += item.total;
+        const pct = item.total > 0 ? Math.min(100, Math.round((item.received / item.total) * 100)) : 0;
+        const mbReceived = (item.received / (1024 * 1024)).toFixed(1);
+        const mbTotal = (item.total / (1024 * 1024)).toFixed(1);
+
+        html += `
+          <div class="download-item" id="download-${id}">
+            <div class="download-item-row">
+              <span class="download-item-name" title="${item.filename}">${item.filename}</span>
+              <span class="download-item-size">${mbReceived} / ${mbTotal} MB</span>
+            </div>
+            <div class="download-progress-track">
+              <div class="download-progress-bar" style="width: ${pct}%;"></div>
+            </div>
+            <div class="download-item-row" style="font-size: 10px; color: var(--text-muted);">
+              <span>${item.state === 'InProgress' ? `${pct}% · Downloading` : item.state}</span>
+              ${item.state === 'InProgress' ? `<button class="find-btn" style="height: 18px; font-size: 10px;" onclick="cancelDownload(${id})">Cancel</button>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      list.innerHTML = html;
+
+      if (totalExpected > 0) {
+        const overallPct = Math.min(1, totalReceived / totalExpected);
+        const offset = 81.68 * (1 - overallPct);
+        ringFill.style.strokeDashoffset = offset;
+      }
+    }
+
+    function cancelDownload(id) {
+      postIpc('CancelDownload', { download_id: id });
+    }
+
+    window.__downloadProgress = function(data) {
+      activeDownloads.set(data.download_id, {
+        filename: data.filename,
+        received: data.received_bytes,
+        total: data.total_bytes,
+        state: data.state
+      });
+      renderDownloads();
+      if (data.state === 'InProgress') {
+        const shelf = document.getElementById('downloadsShelf');
+        if (shelf.style.display === 'none') {
+          shelf.style.display = 'flex';
+        }
+      }
+    };
+
+    /* Find In Page */
+    function toggleFindBar() {
+      const bar = document.getElementById('findBar');
+      const isOpen = bar.style.display === 'flex';
+      if (isOpen) {
+        closeFindBar();
+      } else {
+        document.getElementById('zoomDialog').style.display = 'none';
+        document.getElementById('downloadsShelf').style.display = 'none';
+        bar.style.display = 'flex';
+        const input = document.getElementById('findInput');
+        input.focus();
+        input.select();
+        if (input.value) executeFind(true);
+      }
+    }
+
+    function closeFindBar() {
+      document.getElementById('findBar').style.display = 'none';
+      postIpc('CloseFindInPage');
+    }
+
+    function executeFind(forward) {
+      const query = document.getElementById('findInput').value;
+      if (!query) {
+        document.getElementById('findCount').textContent = '0/0';
+        return;
+      }
+      postIpc('FindInPage', { query, forward });
+    }
+
+    function handleFindKey(e) {
+      if (e.key === 'Enter') {
+        executeFind(!e.shiftKey);
+      } else if (e.key === 'Escape') {
+        closeFindBar();
+      }
+    }
+
+    window.__syncFindResult = function(data) {
+      const count = document.getElementById('findCount');
+      if (data.total > 0) {
+        count.textContent = `${data.current} of ${data.total}`;
+      } else {
+        count.textContent = '0/0';
+      }
+    };
+
+    window.__toggleFindBar = toggleFindBar;
+
+    /* Permission Prompt Bar */
+    let currentPermissionId = null;
+
+    window.__permissionPrompt = function(data) {
+      currentPermissionId = data.permission_id;
+      const bar = document.getElementById('permissionBar');
+      const msg = document.getElementById('permissionMsg');
+      const icon = document.getElementById('permissionIcon');
+
+      const kind = (data.permission_kind || '').toLowerCase();
+      let iconSvg = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+      if (kind.includes('camera')) {
+        iconSvg = '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>';
+      } else if (kind.includes('microphone') || kind.includes('audio')) {
+        iconSvg = '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>';
+      } else if (kind.includes('geolocation') || kind.includes('location')) {
+        iconSvg = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>';
+      } else if (kind.includes('notification')) {
+        iconSvg = '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>';
+      }
+
+      icon.innerHTML = iconSvg;
+      msg.textContent = `${data.origin} wants to access your ${data.permission_kind}`;
+      bar.style.display = 'flex';
+    };
+
+    function resolvePermission(allow) {
+      if (currentPermissionId !== null) {
+        postIpc('PermissionResponse', { permission_id: currentPermissionId, allow });
+        currentPermissionId = null;
+      }
+      document.getElementById('permissionBar').style.display = 'none';
+    }
+
+    function dismissPermission() {
+      document.getElementById('permissionBar').style.display = 'none';
+    }
+
+    /* Link Preview (Peek Modal & Status Tooltip) */
+    let currentPreviewUrl = '';
+
+    window.__showStatusPreview = function(url) {
+      const bar = document.getElementById('statusPreviewBar');
+      if (url) {
+        bar.textContent = url;
+        bar.style.display = 'block';
+      } else {
+        bar.style.display = 'none';
+      }
+    };
+
+    window.__hideStatusPreview = function() {
+      window.__showStatusPreview('');
+    };
+
+    window.__showLinkPreview = function(url) {
+      currentPreviewUrl = url;
+      const modal = document.getElementById('linkPreviewModal');
+      const title = document.getElementById('linkPreviewTitle');
+      const frame = document.getElementById('linkPreviewFrame');
+      title.textContent = url;
+      frame.src = url;
+      modal.style.display = 'flex';
+    };
+
+    function closeLinkPreview() {
+      const modal = document.getElementById('linkPreviewModal');
+      const frame = document.getElementById('linkPreviewFrame');
+      modal.style.display = 'none';
+      frame.src = 'about:blank';
+    }
+
+    function openPreviewInNewTab() {
+      if (currentPreviewUrl) {
+        postIpc('CreateTab', { url: currentPreviewUrl });
+        closeLinkPreview();
+      }
+    }
+
+    /* Tab Rendering & Drag Reorder */
     window.__shellUpdate = function(msg) {
       if (!msg) return;
       const state = msg.data || msg;
@@ -468,10 +1243,8 @@
       const isTabSwitch = (activeTabId !== state.active_tab_id);
       activeTabId = state.active_tab_id;
 
-      // Track incoming tabs to remove closed ones
       const incomingIds = new Set(state.tabs.map(t => t.id));
 
-      // Remove any DOM tabs no longer present
       Array.from(container.children).forEach(child => {
         const rawId = child.id.replace('tab-', '');
         const numId = parseInt(rawId, 10);
@@ -480,8 +1253,7 @@
         }
       });
 
-      // Smooth DOM diffing & updating
-      state.tabs.forEach((tab) => {
+      state.tabs.forEach((tab, index) => {
         let tabEl = document.getElementById('tab-' + tab.id);
         const isActive = (tab.id === state.active_tab_id);
 
@@ -491,6 +1263,56 @@
           tabEl.className = 'tab';
           tabEl.setAttribute('role', 'tab');
           tabEl.onclick = () => switchTab(tab.id);
+
+          // Drag and drop listeners
+          tabEl.draggable = true;
+          tabEl.ondragstart = (e) => {
+            draggedTabId = tab.id;
+            draggedTabIndex = parseInt(tabEl.dataset.index, 10);
+            tabEl.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', tab.id);
+          };
+
+          tabEl.ondragend = (e) => {
+            tabEl.classList.remove('dragging');
+            document.querySelectorAll('.tab').forEach(t => {
+              t.classList.remove('drag-over-left', 'drag-over-right');
+            });
+            // Detach if dragged outside bounds
+            if (e.clientY > 80 || e.clientX < -20 || e.clientX > window.innerWidth + 20 || e.clientY < -50) {
+              if (state.tabs.length > 1) {
+                postIpc('DetachTabToNewWindow', { tab_id: draggedTabId });
+              }
+            }
+          };
+
+          tabEl.ondragover = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = tabEl.getBoundingClientRect();
+            const mid = rect.left + rect.width / 2;
+            if (e.clientX < mid) {
+              tabEl.classList.add('drag-over-left');
+              tabEl.classList.remove('drag-over-right');
+            } else {
+              tabEl.classList.add('drag-over-right');
+              tabEl.classList.remove('drag-over-left');
+            }
+          };
+
+          tabEl.ondragleave = () => {
+            tabEl.classList.remove('drag-over-left', 'drag-over-right');
+          };
+
+          tabEl.ondrop = (e) => {
+            e.preventDefault();
+            tabEl.classList.remove('drag-over-left', 'drag-over-right');
+            const targetIndex = parseInt(tabEl.dataset.index, 10);
+            if (draggedTabIndex !== null && draggedTabIndex !== targetIndex) {
+              postIpc('ReorderTab', { from_index: draggedTabIndex, to_index: targetIndex });
+            }
+          };
 
           // 1. Favicon element
           const iconEl = document.createElement('img');
@@ -512,11 +1334,11 @@
           closeEl.onclick = (ev) => closeTab(tab.id, ev);
           tabEl.appendChild(closeEl);
 
-          // Append in order
           container.appendChild(tabEl);
         }
 
-        // Update active class
+        tabEl.dataset.index = index;
+
         if (isActive) {
           tabEl.classList.add('active');
           tabEl.setAttribute('aria-selected', 'true');
@@ -525,11 +1347,9 @@
           tabEl.setAttribute('aria-selected', 'false');
         }
 
-        // Update Favicon source
         const iconEl = tabEl.querySelector('.tab-favicon');
         if (iconEl) {
           if (tab.url.startsWith('evergreen://newtab') || tab.url === 'about:blank' || tab.url.startsWith('evergreen://settings')) {
-            // Official transparent logo favicon for internal pages
             iconEl.src = "data:image/png;base64,{{LOGO_BASE64}}";
             iconEl.style.display = 'block';
           } else if (tab.favicon_uri) {
@@ -540,7 +1360,6 @@
           }
         }
 
-        // Update Title text
         const titleEl = tabEl.querySelector('.tab-title');
         if (titleEl) {
           let displayTitle = tab.title;
@@ -553,10 +1372,8 @@
           titleEl.title = displayTitle;
         }
 
-        // Update omnibox & navigation buttons for active tab
         if (isActive) {
           const omnibox = document.getElementById('omnibox');
-          // Update URL instantaneously on tab switch or navigation
           if (!tab.url.startsWith('data:text/html')) {
             if (isTabSwitch || omnibox.dataset.lastSyncedUrl !== tab.url || document.activeElement !== omnibox) {
               omnibox.value = tab.url;
@@ -567,7 +1384,6 @@
           document.getElementById('btnBack').disabled = !tab.can_go_back;
           document.getElementById('btnForward').disabled = !tab.can_go_forward;
 
-          // Update Padlock Security Button status
           const lockBtn = document.getElementById('btnLock');
           const lockIcon = document.getElementById('lockIcon');
           if (tab.url.startsWith('https://')) {
@@ -596,7 +1412,17 @@
       omnibox.select();
     };
 
-    // Signal ready when DOM is parsed
+    document.addEventListener('click', (e) => {
+      const zoomDialog = document.getElementById('zoomDialog');
+      const downloadsShelf = document.getElementById('downloadsShelf');
+      if (zoomDialog && !zoomDialog.contains(e.target) && e.target.id !== 'zoomBadge') {
+        zoomDialog.style.display = 'none';
+      }
+      if (downloadsShelf && !downloadsShelf.contains(e.target) && !e.target.closest('#btnDownloads')) {
+        downloadsShelf.style.display = 'none';
+      }
+    });
+
     window.onload = () => {
       postIpc('ChromeReady');
     };

@@ -231,6 +231,57 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       margin: 4px 0;
     }
 
+    .zoom-action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      height: 36px;
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .zoom-btn {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      color: var(--text-main);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.1s ease;
+    }
+
+    .zoom-btn:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .zoom-val {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      min-width: 38px;
+      text-align: center;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.1s ease, color 0.1s ease;
+    }
+
+    .zoom-val:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+    }
+
     /* Security Status Banner */
     .security-status-card {
       padding: 14px;
@@ -385,6 +436,26 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
           </svg>
           <span class="action-label">Reload page</span>
           <span class="action-shortcut">Ctrl+R</span>
+        </div>
+        <div class="action-divider"></div>
+        <!-- Zoom Controls -->
+        <div class="zoom-action-row">
+          <span class="action-label">Zoom</span>
+          <div class="zoom-controls">
+            <button class="zoom-btn" id="sidebarZoomOut" onclick="sendAction('ZoomOut')" title="Zoom Out (Ctrl+-)">−</button>
+            <span class="zoom-val" id="sidebarZoomVal" onclick="sendAction('ZoomReset')" title="Reset (Ctrl+0)">100%</span>
+            <button class="zoom-btn" id="sidebarZoomIn" onclick="sendAction('ZoomIn')" title="Zoom In (Ctrl++)">+</button>
+          </div>
+        </div>
+        <div class="action-item" onclick="sendAction('OpenFindInPage')">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span class="action-label">Find in page</span>
+          <span class="action-shortcut">Ctrl+F</span>
+        </div>
+        <div class="action-item" onclick="sendAction('OpenDownloads')">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <span class="action-label">Downloads</span>
+          <span class="action-shortcut">Ctrl+J</span>
         </div>
         <div class="action-divider"></div>
         <div class="action-item" onclick="sendAction('OpenDevTools')">
@@ -607,6 +678,11 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
           desc.textContent = 'You should not enter any sensitive information on this site (passwords, cards), as it could be intercepted by attackers.';
         }
       }
+    };
+
+    window.__syncZoom = function(factor) {
+      const el = document.getElementById('sidebarZoomVal');
+      if (el) el.textContent = Math.round(factor * 100) + '%';
     };
   </script>
 </body>

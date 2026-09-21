@@ -60,17 +60,60 @@ const NAV_WATCHER_SCRIPT: &str = r#"
       new MutationObserver(() => notifyNav()).observe(titleEl, { childList: true, characterData: true, subtree: true });
     }
   }
+  document.addEventListener('mouseover', (e) => {
+    const a = e.target.closest('a');
+    if (a && a.href && window.ipc) {
+      window.ipc.postMessage(JSON.stringify({
+        action: 'TriggerLinkPreview',
+        payload: { url: a.href, peek: false }
+      }));
+    }
+  });
+  document.addEventListener('mouseout', (e) => {
+    const a = e.target.closest('a');
+    if (a && window.ipc) {
+      window.ipc.postMessage(JSON.stringify({
+        action: 'TriggerLinkPreview',
+        payload: { url: '', peek: false }
+      }));
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (e.altKey) {
+      const a = e.target.closest('a');
+      if (a && a.href && window.ipc) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.ipc.postMessage(JSON.stringify({
+          action: 'TriggerLinkPreview',
+          payload: { url: a.href, peek: true }
+        }));
+      }
+    }
+  }, true);
 })();
 "#;
 
 #[derive(Debug)]
-enum BrowserEvent {
+pub(crate) enum BrowserEvent {
     Ipc(UiToHostMessage),
     TabTitleChanged(TabId, String),
     TabNavigated(TabId, String),
     HistoryChanged(TabId, bool, bool),
     CommandDone(String, bool, String),
     Shortcut(String),
+    DownloadProgress {
+        download_id: u64,
+        filename: String,
+        received_bytes: i64,
+        total_bytes: i64,
+        state: String,
+    },
+    PermissionPrompt {
+        permission_id: u64,
+        origin: String,
+        permission_kind: String,
+    },
 }
 
 struct BrowserApp {
@@ -148,6 +191,98 @@ impl BrowserApp {
             if let Ok(json_str) = serde_json::to_string(&sync_msg) {
                 let script = format!("if (window.__shellUpdate) {{ window.__shellUpdate({}); }}", json_str);
                 let _ = chrome.evaluate_script(&script);
+            }
+        }
+    }
+
+    fn sync_zoom(&self, factor: f64) {
+        if let Some(chrome) = &self.chrome_webview {
+            let _ = chrome.evaluate_script(&format!(
+                "if (window.__syncZoom) {{ window.__syncZoom({}); }}",
+                factor
+            ));
+        }
+        if let Some(sidebar) = &self.sidebar_webview {
+            let _ = sidebar.evaluate_script(&format!(
+                "if (window.__syncZoom) {{ window.__syncZoom({}); }}",
+                factor
+            ));
+        }
+    }
+
+    fn get_active_zoom(&self) -> f64 {
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(active) = self.tab_manager.active_tab() {
+                if let Some(wv) = self.tabs.get(&active.id) {
+                    use wry::WebViewExtWindows;
+                    unsafe {
+                        let controller = wv.controller();
+                        let mut factor = 1.0;
+                        if controller.ZoomFactor(&mut factor).is_ok() {
+                            return factor;
+                        }
+                    }
+                }
+            }
+        }
+        1.0
+    }
+
+    fn set_active_zoom(&self, factor: f64) {
+        let clamped = (factor * 100.0).round() / 100.0;
+        let clamped = clamped.clamp(0.25, 3.0);
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(active) = self.tab_manager.active_tab() {
+                if let Some(wv) = self.tabs.get(&active.id) {
+                    use wry::WebViewExtWindows;
+                    unsafe {
+                        let controller = wv.controller();
+                        let _ = controller.SetZoomFactor(clamped);
+                    }
+                }
+            }
+        }
+        self.sync_zoom(clamped);
+    }
+
+    fn handle_find_in_page(&self, query: &str, forward: bool) {
+        if let Some(active) = self.tab_manager.active_tab() {
+            if let Some(wv) = self.tabs.get(&active.id) {
+                let escaped_query = query.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', " ");
+                let script = format!(
+                    r#"
+                    (() => {{
+                        const q = '{escaped_query}';
+                        if (!q) return;
+                        const found = window.find(q, false, !{forward}, true, false, false, false);
+                        const bodyText = document.body ? document.body.innerText : '';
+                        let count = 0;
+                        if (bodyText && q) {{
+                            const re = new RegExp(q.replace(/[.*+?^${{}}()|[\]\\]/g, '\\$&'), 'gi');
+                            const matches = bodyText.match(re);
+                            count = matches ? matches.length : 0;
+                        }}
+                        const current = (found && count > 0) ? 1 : (count > 0 ? 1 : 0);
+                        if (window.ipc) {{
+                            window.ipc.postMessage(JSON.stringify({{
+                                action: 'FindResult',
+                                payload: {{ current, total: count }}
+                            }}));
+                        }}
+                    }})();
+                    "#
+                );
+                let _ = wv.evaluate_script(&script);
+            }
+        }
+    }
+
+    fn handle_close_find_in_page(&self) {
+        if let Some(active) = self.tab_manager.active_tab() {
+            if let Some(wv) = self.tabs.get(&active.id) {
+                let _ = wv.evaluate_script("if (window.getSelection) { window.getSelection().removeAllRanges(); }");
             }
         }
     }
@@ -286,7 +421,7 @@ impl BrowserApp {
         let search_name = self.settings.search_engine_display_name().to_string();
         let search_url = self.settings.search_url_template().to_string();
         let home_html_content = home_ui::get_home_html(&search_name, &search_url);
-        let settings_html_content = settings_ui::get_settings_html(&runtime_ver, &self.settings.search_engine);
+        let settings_html_content = settings_ui::get_settings_html(&runtime_ver, &self.settings);
         let home_bytes = home_html_content.as_bytes().to_vec();
         let settings_bytes = settings_html_content.as_bytes().to_vec();
 
@@ -368,6 +503,12 @@ impl BrowserApp {
                 self.tabs.insert(tab_id, wv);
                 self.sync_ui_state();
                 self.update_sidebar_sync();
+                let default_zoom = self.settings.appearance.default_zoom_level;
+                if (default_zoom - 1.0).abs() > f64::EPSILON {
+                    self.set_active_zoom(default_zoom);
+                } else {
+                    self.sync_zoom(1.0);
+                }
             }
             Err(e) => eprintln!("Failed to create tab webview: {:?}", e),
         }
@@ -405,6 +546,7 @@ impl BrowserApp {
             }
             self.sync_ui_state();
             self.update_sidebar_sync();
+            self.sync_zoom(self.get_active_zoom());
         }
     }
 
@@ -525,7 +667,7 @@ impl BrowserApp {
     fn show_native_menu(&mut self, _x: f64, _y: f64) {}
 }
 
-fn extract_host(url: &str) -> Option<String> {
+pub(crate) fn extract_host(url: &str) -> Option<String> {
     let after_scheme = url
         .strip_prefix("https://")
         .or_else(|| url.strip_prefix("http://"))?;
@@ -604,8 +746,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 Err(e) => eprintln!("Failed to create chrome webview: {:?}", e),
             }
 
-            // 2. Create initial active tab with Fluent Home Screen
-            self.handle_create_tab(None);
+            // 2. Create initial active tab with Fluent Home Screen (or CLI passed URL)
+            let initial_url = std::env::args().nth(1).filter(|a| !a.is_empty() && !a.starts_with('-'));
+            self.handle_create_tab(initial_url);
 
             // 3. Make window visible now that webviews are initialized (eliminates white flashing)
             window.set_visible(true);
@@ -722,7 +865,93 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         ));
                     }
                 }
-                UiToHostMessage::SaveSettings { .. } => {}
+                UiToHostMessage::ReorderTab { from_index, to_index } => {
+                    self.tab_manager.reorder_tab(from_index, to_index);
+                    self.sync_ui_state();
+                }
+                UiToHostMessage::DetachTabToNewWindow { tab_id } => {
+                    let tab_url = self.tab_manager.get_tab_by_id(tab_id).map(|t| t.url.clone());
+                    if self.tab_manager.tabs().len() > 1 {
+                        if let Some(wv) = self.tabs.remove(&tab_id) {
+                            let _ = wv.set_visible(false);
+                            drop(wv);
+                        }
+                        if let Some(next_active) = self.tab_manager.close_tab(tab_id) {
+                            self.handle_switch_tab(next_active);
+                        }
+                        self.sync_ui_state();
+                        if let Ok(exe) = std::env::current_exe() {
+                            let mut cmd = std::process::Command::new(exe);
+                            if let Some(ref u) = tab_url {
+                                cmd.arg(u);
+                            }
+                            let _ = cmd.spawn();
+                        }
+                    }
+                }
+                UiToHostMessage::SetZoom { factor } => {
+                    self.set_active_zoom(factor);
+                }
+                UiToHostMessage::ZoomIn => {
+                    self.set_active_zoom(self.get_active_zoom() + 0.1);
+                }
+                UiToHostMessage::ZoomOut => {
+                    self.set_active_zoom(self.get_active_zoom() - 0.1);
+                }
+                UiToHostMessage::ZoomReset => {
+                    self.set_active_zoom(1.0);
+                }
+                UiToHostMessage::FindInPage { query, forward } => {
+                    self.handle_find_in_page(&query, forward);
+                }
+                UiToHostMessage::CloseFindInPage => {
+                    self.handle_close_find_in_page();
+                }
+                UiToHostMessage::FindResult { current, total } => {
+                    if let Some(chrome) = &self.chrome_webview {
+                        let _ = chrome.evaluate_script(&format!(
+                            "if (window.__syncFindResult) {{ window.__syncFindResult({{ current: {}, total: {} }}); }}",
+                            current, total
+                        ));
+                    }
+                }
+                UiToHostMessage::OpenDownloads => {
+                    if let Some(chrome) = &self.chrome_webview {
+                        let _ = chrome.evaluate_script("if (window.toggleDownloadsShelf) { window.toggleDownloadsShelf(); }");
+                    }
+                }
+                UiToHostMessage::DownloadConfirm { .. } => {}
+                UiToHostMessage::CancelDownload { .. } => {}
+                UiToHostMessage::PermissionResponse { .. } => {}
+                UiToHostMessage::TriggerLinkPreview { url, peek } => {
+                    if let Some(chrome) = &self.chrome_webview {
+                        let escaped = url.replace('\\', "\\\\").replace('\'', "\\'");
+                        if peek {
+                            let _ = chrome.evaluate_script(&format!(
+                                "if (window.__showLinkPreview) {{ window.__showLinkPreview('{}'); }}",
+                                escaped
+                            ));
+                        } else {
+                            let _ = chrome.evaluate_script(&format!(
+                                "if (window.__showStatusPreview) {{ window.__showStatusPreview('{}'); }}",
+                                escaped
+                            ));
+                        }
+                    }
+                }
+                UiToHostMessage::SaveSettings { settings_json } => {
+                    if let Ok(new_settings) = serde_json::from_str::<evergreen_core::settings::Settings>(&settings_json) {
+                        self.settings = new_settings;
+                        let path = get_settings_path();
+                        let _ = self.settings.save_to_path(&path);
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script(&format!(
+                                "if (window.__syncSearchEngine) {{ window.__syncSearchEngine('{}'); }}",
+                                self.settings.search_engine
+                            ));
+                        }
+                    }
+                }
                 UiToHostMessage::RunEngineUpdate => {
                     let proxy = self.proxy.clone();
                     std::thread::spawn(move || {
@@ -775,6 +1004,34 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
             BrowserEvent::CommandDone(name, success, output) => {
                 println!("[COMMAND RESULT] {}: success={} (output: {})", name, success, output.trim());
             }
+            BrowserEvent::DownloadProgress { download_id, filename, received_bytes, total_bytes, state } => {
+                if let Some(chrome) = &self.chrome_webview {
+                    let json = serde_json::json!({
+                        "download_id": download_id,
+                        "filename": filename,
+                        "received_bytes": received_bytes,
+                        "total_bytes": total_bytes,
+                        "state": state,
+                    });
+                    let _ = chrome.evaluate_script(&format!(
+                        "if (window.__downloadProgress) {{ window.__downloadProgress({}); }}",
+                        json
+                    ));
+                }
+            }
+            BrowserEvent::PermissionPrompt { permission_id, origin, permission_kind } => {
+                if let Some(chrome) = &self.chrome_webview {
+                    let json = serde_json::json!({
+                        "permission_id": permission_id,
+                        "origin": origin,
+                        "permission_kind": permission_kind,
+                    });
+                    let _ = chrome.evaluate_script(&format!(
+                        "if (window.__permissionPrompt) {{ window.__permissionPrompt({}); }}",
+                        json
+                    ));
+                }
+            }
             BrowserEvent::Shortcut(shortcut) => {
                 match shortcut.as_str() {
                     "Ctrl+T" => self.handle_create_tab(None),
@@ -789,8 +1046,18 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             self.handle_close_tab(id, event_loop);
                         }
                     }
-                    "Ctrl+L" | "Ctrl+E" | "Ctrl+K" | "Ctrl+F" => {
+                    "Ctrl+L" | "Ctrl+E" | "Ctrl+K" => {
                         self.handle_focus_omnibox();
+                    }
+                    "Ctrl+F" => {
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script("if (window.__toggleFindBar) { window.__toggleFindBar(); }");
+                        }
+                    }
+                    "Ctrl+J" => {
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script("if (window.toggleDownloadsShelf) { window.toggleDownloadsShelf(); }");
+                        }
                     }
                     "Ctrl+P" => {
                         if let Some(active) = self.tab_manager.active_tab() {
@@ -860,52 +1127,13 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                     "Ctrl+Plus" => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let mut factor = 1.0;
-                                        if controller.ZoomFactor(&mut factor).is_ok() {
-                                            let _ = controller.SetZoomFactor((factor + 0.1).min(3.0));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(self.get_active_zoom() + 0.1);
                     }
                     "Ctrl+Minus" => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let mut factor = 1.0;
-                                        if controller.ZoomFactor(&mut factor).is_ok() {
-                                            let _ = controller.SetZoomFactor((factor - 0.1).max(0.25));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(self.get_active_zoom() - 0.1);
                     }
                     "Ctrl+Zero" => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let _ = controller.SetZoomFactor(1.0);
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(1.0);
                     }
                     "Escape" => {
                         if self.sidebar_webview.is_some() {
@@ -1009,8 +1237,18 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             self.handle_close_tab(id, event_loop);
                         }
                     }
-                    Key::Character(ref s) if (s.eq_ignore_ascii_case("l") || s.eq_ignore_ascii_case("e") || s.eq_ignore_ascii_case("k") || s.eq_ignore_ascii_case("f")) && self.modifiers.control_key() => {
+                    Key::Character(ref s) if (s.eq_ignore_ascii_case("l") || s.eq_ignore_ascii_case("e") || s.eq_ignore_ascii_case("k")) && self.modifiers.control_key() => {
                         self.handle_focus_omnibox();
+                    }
+                    Key::Character(ref s) if s.eq_ignore_ascii_case("f") && self.modifiers.control_key() => {
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script("if (window.__toggleFindBar) { window.__toggleFindBar(); }");
+                        }
+                    }
+                    Key::Character(ref s) if s.eq_ignore_ascii_case("j") && self.modifiers.control_key() => {
+                        if let Some(chrome) = &self.chrome_webview {
+                            let _ = chrome.evaluate_script("if (window.toggleDownloadsShelf) { window.toggleDownloadsShelf(); }");
+                        }
                     }
                     Key::Character(ref s) if s.eq_ignore_ascii_case("p") && self.modifiers.control_key() => {
                         if let Some(active) = self.tab_manager.active_tab() {
@@ -1065,52 +1303,13 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                     Key::Character(ref s) if self.modifiers.control_key() && (s == "+" || s == "=") => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let mut factor = 1.0;
-                                        if controller.ZoomFactor(&mut factor).is_ok() {
-                                            let _ = controller.SetZoomFactor((factor + 0.1).min(3.0));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(self.get_active_zoom() + 0.1);
                     }
                     Key::Character(ref s) if self.modifiers.control_key() && (s == "-" || s == "_") => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let mut factor = 1.0;
-                                        if controller.ZoomFactor(&mut factor).is_ok() {
-                                            let _ = controller.SetZoomFactor((factor - 0.1).max(0.25));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(self.get_active_zoom() - 0.1);
                     }
                     Key::Character(ref s) if self.modifiers.control_key() && s == "0" => {
-                        if let Some(active) = self.tab_manager.active_tab() {
-                            if let Some(wv) = self.tabs.get(&active.id) {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    use wry::WebViewExtWindows;
-                                    unsafe {
-                                        let controller = wv.controller();
-                                        let _ = controller.SetZoomFactor(1.0);
-                                    }
-                                }
-                            }
-                        }
+                        self.set_active_zoom(1.0);
                     }
                     Key::Named(NamedKey::ArrowLeft) if self.modifiers.alt_key() => {
                         if let Some(active) = self.tab_manager.active_tab() {
