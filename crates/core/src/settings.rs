@@ -22,6 +22,9 @@ pub struct Settings {
     pub permissions: PermissionSettings,
     /// App update commands
     pub updates: UpdateSettings,
+    /// Pluggable feature toggles
+    #[serde(default)]
+    pub features: FeatureFlags,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -106,6 +109,35 @@ pub struct UpdateSettings {
     pub fork_update_command: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FeatureFlags {
+    /// Enable Find-in-Page search widget (Ctrl+F)
+    pub enable_find_in_page: bool,
+    /// Enable Downloads management, shelf, and confirmation prompts
+    pub enable_downloads_manager: bool,
+    /// Enable link destination status tooltip and Peek preview
+    pub enable_link_preview: bool,
+    /// Enable tab drag reordering and window tear-off
+    pub enable_tab_gestures: bool,
+    /// Enable custom zoom badge and controls
+    pub enable_zoom_controls: bool,
+    /// Enable site permissions prompt bar
+    pub enable_permissions_prompt: bool,
+}
+
+impl Default for FeatureFlags {
+    fn default() -> Self {
+        Self {
+            enable_find_in_page: true,
+            enable_downloads_manager: true,
+            enable_link_preview: true,
+            enable_tab_gestures: true,
+            enable_zoom_controls: true,
+            enable_permissions_prompt: true,
+        }
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         let default_download_dir = dirs_fallback_downloads();
@@ -152,6 +184,7 @@ impl Default for Settings {
                 auto_check_app_updates: false,
                 fork_update_command: "git pull && cargo build --release".to_string(),
             },
+            features: FeatureFlags::default(),
         }
     }
 }
@@ -174,6 +207,100 @@ impl Settings {
             "brave" => "Brave",
             "ecosia" => "Ecosia",
             _ => "DuckDuckGo",
+        }
+    }
+
+    /// Update settings in place from a partial or complete JSON value.
+    pub fn update_from_json(&mut self, val: &serde_json::Value) {
+        if let Some(obj) = val.as_object() {
+            for (k, v) in obj {
+                match k.as_str() {
+                    "search_engine" => {
+                        if let Some(s) = v.as_str() { self.search_engine = s.to_string(); }
+                    }
+                    "askWhereToSave" => {
+                        if let Some(b) = v.as_bool() { self.downloads.ask_where_to_save = b; }
+                    }
+                    "showProgressToolbar" => {
+                        if let Some(b) = v.as_bool() { self.downloads.show_progress_toolbar = b; }
+                    }
+                    "tabReordering" => {
+                        if let Some(b) = v.as_bool() { self.tabs.enable_tab_reordering = b; }
+                    }
+                    "tabTearoff" => {
+                        if let Some(b) = v.as_bool() { self.tabs.enable_tab_tearoff = b; }
+                    }
+                    "default_zoom_level" => {
+                        if let Some(f) = v.as_f64() { self.appearance.default_zoom_level = f; }
+                    }
+                    "showZoomBadge" => {
+                        if let Some(b) = v.as_bool() { self.appearance.show_zoom_badge = b; }
+                    }
+                    "enableLinkPreview" => {
+                        if let Some(b) = v.as_bool() { self.appearance.enable_link_preview = b; }
+                    }
+                    "showStatusPreview" => {
+                        if let Some(b) = v.as_bool() { self.appearance.show_status_preview = b; }
+                    }
+                    "permissions" => {
+                        if let Some(p_obj) = v.as_object() {
+                            if let Some(loc) = p_obj.get("location").and_then(|x| x.as_str()) {
+                                self.permissions.location = loc.to_string();
+                            }
+                            if let Some(cam) = p_obj.get("camera").and_then(|x| x.as_str()) {
+                                self.permissions.camera = cam.to_string();
+                            }
+                            if let Some(mic) = p_obj.get("microphone").and_then(|x| x.as_str()) {
+                                self.permissions.microphone = mic.to_string();
+                            }
+                            if let Some(notif) = p_obj.get("notifications").and_then(|x| x.as_str()) {
+                                self.permissions.notifications = notif.to_string();
+                            }
+                        }
+                    }
+                    "features" => {
+                        if let Some(f_obj) = v.as_object() {
+                            if let Some(b) = f_obj.get("enable_find_in_page").and_then(|x| x.as_bool()) {
+                                self.features.enable_find_in_page = b;
+                            }
+                            if let Some(b) = f_obj.get("enable_downloads_manager").and_then(|x| x.as_bool()) {
+                                self.features.enable_downloads_manager = b;
+                            }
+                            if let Some(b) = f_obj.get("enable_link_preview").and_then(|x| x.as_bool()) {
+                                self.features.enable_link_preview = b;
+                            }
+                            if let Some(b) = f_obj.get("enable_tab_gestures").and_then(|x| x.as_bool()) {
+                                self.features.enable_tab_gestures = b;
+                            }
+                            if let Some(b) = f_obj.get("enable_zoom_controls").and_then(|x| x.as_bool()) {
+                                self.features.enable_zoom_controls = b;
+                            }
+                            if let Some(b) = f_obj.get("enable_permissions_prompt").and_then(|x| x.as_bool()) {
+                                self.features.enable_permissions_prompt = b;
+                            }
+                        }
+                    }
+                    "enable_find_in_page" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_find_in_page = b; }
+                    }
+                    "enable_downloads_manager" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_downloads_manager = b; }
+                    }
+                    "enable_link_preview" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_link_preview = b; }
+                    }
+                    "enable_tab_gestures" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_tab_gestures = b; }
+                    }
+                    "enable_zoom_controls" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_zoom_controls = b; }
+                    }
+                    "enable_permissions_prompt" => {
+                        if let Some(b) = v.as_bool() { self.features.enable_permissions_prompt = b; }
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }

@@ -274,10 +274,86 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       <div class="row">
         <div class="row-info">
           <span class="row-label">Engine Updates</span>
-          <span class="row-desc">Invoke official Microsoft bootstrapper to check for latest runtime updates</span>
+          <span class="row-desc">WebView2 Evergreen Runtime updates automatically with Windows Update and Microsoft Edge background services</span>
         </div>
         <div class="row-action">
-          <button class="btn" onclick="sendAction('RunEngineUpdate')">Update Engine Now</button>
+          <span class="val-badge active">Automatic (Managed by Windows)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Feature Modules & Extensions</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Find in Page</span>
+          <span class="row-desc">Expandable search tray with live in-page highlight matching</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featureFindInPageToggle" checked onchange="onFeatureToggleChange('enable_find_in_page', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Downloads Manager</span>
+          <span class="row-desc">Interactive downloads drawer and animated perimeter progress ring</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featureDownloadsToggle" checked onchange="onFeatureToggleChange('enable_downloads_manager', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Interactive Link Preview (Peek)</span>
+          <span class="row-desc">Bottom-left destination URL bubble and floating modal page preview</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featureLinkPreviewToggle" checked onchange="onFeatureToggleChange('enable_link_preview', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Tab Gestures & Reordering</span>
+          <span class="row-desc">Drag tabs to reorder, detach into new windows, or drag between windows</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featureTabGesturesToggle" checked onchange="onFeatureToggleChange('enable_tab_gestures', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Zoom Controls & Badge</span>
+          <span class="row-desc">Zoom in/out shortcuts, omnibox zoom percentage badge, and reset menu</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featureZoomControlsToggle" checked onchange="onFeatureToggleChange('enable_zoom_controls', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-info">
+          <span class="row-label">Permission Prompt Bar</span>
+          <span class="row-desc">Interactive site permission consent banner for camera, mic, geolocation</span>
+        </div>
+        <div class="row-action">
+          <label class="switch">
+            <input type="checkbox" id="featurePermissionsToggle" checked onchange="onFeatureToggleChange('enable_permissions_prompt', this.checked)">
+            <span class="slider"></span>
+          </label>
         </div>
       </div>
     </div>
@@ -375,12 +451,12 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="defaultZoomSelect" class="select-box" onchange="onDefaultZoomChange(this.value)">
-            <option value="0.75">75%</option>
-            <option value="0.9">90%</option>
-            <option value="1.0" selected>100% (Default)</option>
-            <option value="1.1">110%</option>
-            <option value="1.25">125%</option>
-            <option value="1.5">150%</option>
+            <option id="opt_zoom_75" value="0.75">75%</option>
+            <option id="opt_zoom_90" value="0.9">90%</option>
+            <option id="opt_zoom_100" value="1.0">100% (Default)</option>
+            <option id="opt_zoom_110" value="1.1">110%</option>
+            <option id="opt_zoom_125" value="1.25">125%</option>
+            <option id="opt_zoom_150" value="1.5">150%</option>
           </select>
         </div>
       </div>
@@ -431,9 +507,9 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="permLocationSelect" class="select-box" onchange="onPermissionChange('location', this.value)">
-            <option value="ask" selected>Always Ask</option>
-            <option value="allow">Allow</option>
-            <option value="block">Block</option>
+            <option id="opt_perm_location_ask" value="ask">Always Ask</option>
+            <option id="opt_perm_location_allow" value="allow">Allow</option>
+            <option id="opt_perm_location_block" value="block">Block</option>
           </select>
         </div>
       </div>
@@ -444,9 +520,9 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="permCameraSelect" class="select-box" onchange="onPermissionChange('camera', this.value)">
-            <option value="ask" selected>Always Ask</option>
-            <option value="allow">Allow</option>
-            <option value="block">Block</option>
+            <option id="opt_perm_camera_ask" value="ask">Always Ask</option>
+            <option id="opt_perm_camera_allow" value="allow">Allow</option>
+            <option id="opt_perm_camera_block" value="block">Block</option>
           </select>
         </div>
       </div>
@@ -457,9 +533,9 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="permMicrophoneSelect" class="select-box" onchange="onPermissionChange('microphone', this.value)">
-            <option value="ask" selected>Always Ask</option>
-            <option value="allow">Allow</option>
-            <option value="block">Block</option>
+            <option id="opt_perm_microphone_ask" value="ask">Always Ask</option>
+            <option id="opt_perm_microphone_allow" value="allow">Allow</option>
+            <option id="opt_perm_microphone_block" value="block">Block</option>
           </select>
         </div>
       </div>
@@ -470,9 +546,9 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
         <div class="row-action">
           <select id="permNotificationsSelect" class="select-box" onchange="onPermissionChange('notifications', this.value)">
-            <option value="ask" selected>Always Ask</option>
-            <option value="allow">Allow</option>
-            <option value="block">Block</option>
+            <option id="opt_perm_notifications_ask" value="ask">Always Ask</option>
+            <option id="opt_perm_notifications_allow" value="allow">Allow</option>
+            <option id="opt_perm_notifications_block" value="block">Block</option>
           </select>
         </div>
       </div>
@@ -553,11 +629,31 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
     }
 
-    function onToggleChange(setting, value) {
+    function onFeatureToggleChange(feature, value) {
       if (window.ipc) {
         window.ipc.postMessage(JSON.stringify({
           action: 'SaveSettings',
-          payload: { settings_json: JSON.stringify({ [setting]: value }) }
+          payload: { settings_json: JSON.stringify({ features: { [feature]: value } }) }
+        }));
+        showStatus('Updated feature ' + feature + ' to ' + value);
+      }
+    }
+
+    function onToggleChange(setting, value) {
+      if (window.ipc) {
+        let payloadObj = {};
+        if (setting === 'askWhereToSave' || setting === 'showProgressToolbar') {
+          payloadObj = { downloads: { [setting === 'askWhereToSave' ? 'ask_where_to_save' : 'show_progress_toolbar']: value } };
+        } else if (setting === 'tabReordering' || setting === 'tabTearoff') {
+          payloadObj = { tabs: { [setting === 'tabReordering' ? 'enable_tab_reordering' : 'enable_tab_tearoff']: value } };
+        } else if (setting === 'showZoomBadge' || setting === 'enableLinkPreview' || setting === 'showStatusPreview') {
+          payloadObj = { appearance: { [setting === 'showZoomBadge' ? 'show_zoom_badge' : (setting === 'enableLinkPreview' ? 'enable_link_preview' : 'show_status_preview')]: value } };
+        } else {
+          payloadObj = { [setting]: value };
+        }
+        window.ipc.postMessage(JSON.stringify({
+          action: 'SaveSettings',
+          payload: { settings_json: JSON.stringify(payloadObj) }
         }));
         showStatus('Updated ' + setting + ' to ' + value);
       }
@@ -635,6 +731,55 @@ pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
     }
     if !settings.appearance.show_status_preview {
         html = html.replace("id=\"showStatusPreviewToggle\" checked", "id=\"showStatusPreviewToggle\"");
+    }
+
+    // Pluggable Feature Toggles
+    if !settings.features.enable_find_in_page {
+        html = html.replace("id=\"featureFindInPageToggle\" checked", "id=\"featureFindInPageToggle\"");
+    }
+    if !settings.features.enable_downloads_manager {
+        html = html.replace("id=\"featureDownloadsToggle\" checked", "id=\"featureDownloadsToggle\"");
+    }
+    if !settings.features.enable_link_preview {
+        html = html.replace("id=\"featureLinkPreviewToggle\" checked", "id=\"featureLinkPreviewToggle\"");
+    }
+    if !settings.features.enable_tab_gestures {
+        html = html.replace("id=\"featureTabGesturesToggle\" checked", "id=\"featureTabGesturesToggle\"");
+    }
+    if !settings.features.enable_zoom_controls {
+        html = html.replace("id=\"featureZoomControlsToggle\" checked", "id=\"featureZoomControlsToggle\"");
+    }
+    if !settings.features.enable_permissions_prompt {
+        html = html.replace("id=\"featurePermissionsToggle\" checked", "id=\"featurePermissionsToggle\"");
+    }
+
+    // Zoom level
+    let zoom_id = if (settings.appearance.default_zoom_level - 0.75).abs() < 0.01 {
+        "opt_zoom_75"
+    } else if (settings.appearance.default_zoom_level - 0.9).abs() < 0.01 {
+        "opt_zoom_90"
+    } else if (settings.appearance.default_zoom_level - 1.1).abs() < 0.01 {
+        "opt_zoom_110"
+    } else if (settings.appearance.default_zoom_level - 1.25).abs() < 0.01 {
+        "opt_zoom_125"
+    } else if (settings.appearance.default_zoom_level - 1.5).abs() < 0.01 {
+        "opt_zoom_150"
+    } else {
+        "opt_zoom_100"
+    };
+    html = html.replace(&format!("id=\"{}\"", zoom_id), &format!("id=\"{}\" selected", zoom_id));
+
+    // Site permissions
+    let perms = [
+        ("location", &settings.permissions.location),
+        ("camera", &settings.permissions.camera),
+        ("microphone", &settings.permissions.microphone),
+        ("notifications", &settings.permissions.notifications),
+    ];
+    for (perm_name, perm_val) in perms {
+        let val_lower = perm_val.to_lowercase();
+        let target_id = format!("opt_perm_{}_{}", perm_name, val_lower);
+        html = html.replace(&format!("id=\"{}\"", target_id), &format!("id=\"{}\" selected", target_id));
     }
 
     html

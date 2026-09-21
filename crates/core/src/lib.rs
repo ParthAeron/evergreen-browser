@@ -7,6 +7,7 @@
 pub mod engine;
 pub mod env;
 pub mod ipc;
+pub mod plugins;
 pub mod settings;
 pub mod tabs;
 pub mod updater;

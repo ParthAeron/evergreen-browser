@@ -130,6 +130,10 @@ impl TabManager {
             .and_then(|id| self.tabs.iter().find(|t| t.id == id))
     }
 
+    pub fn active_tab_id(&self) -> Option<TabId> {
+        self.active_tab_id
+    }
+
     pub fn tabs(&self) -> &[TabState] {
         &self.tabs
     }
@@ -191,6 +195,49 @@ impl TabManager {
 
     pub fn get_tab_by_id(&self, id: TabId) -> Option<&TabState> {
         self.tabs.iter().find(|t| t.id == id)
+    }
+
+    /// Extract a tab from this manager (for moving to another window).
+    pub fn extract_tab(&mut self, id: TabId) -> Option<TabState> {
+        if let Some(pos) = self.tabs.iter().position(|t| t.id == id) {
+            let tab = self.tabs.remove(pos);
+            if self.active_tab_id == Some(id) {
+                if self.tabs.is_empty() {
+                    self.active_tab_id = None;
+                } else {
+                    let next_pos = if pos >= self.tabs.len() {
+                        self.tabs.len() - 1
+                    } else {
+                        pos
+                    };
+                    let next_id = self.tabs[next_pos].id;
+                    self.tabs[next_pos].status = TabStatus::Active;
+                    self.active_tab_id = Some(next_id);
+                }
+            }
+            Some(tab)
+        } else {
+            None
+        }
+    }
+
+    /// Insert an existing tab state into this manager (e.g. from another window).
+    pub fn insert_tab(&mut self, mut tab: TabState, at_index: Option<usize>) -> TabId {
+        let new_id = TabId(self.next_id);
+        self.next_id += 1;
+        tab.id = new_id;
+        tab.status = TabStatus::Active;
+
+        if let Some(prev_active) = self.active_tab_id {
+            if let Some(prev) = self.tabs.iter_mut().find(|t| t.id == prev_active) {
+                prev.status = TabStatus::Inactive;
+            }
+        }
+
+        let idx = at_index.unwrap_or(self.tabs.len()).min(self.tabs.len());
+        self.tabs.insert(idx, tab);
+        self.active_tab_id = Some(new_id);
+        new_id
     }
 }
 

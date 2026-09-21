@@ -411,6 +411,7 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
   <div class="mode-nav">
     <button class="mode-tab active" id="tabMenu" onclick="switchMode('menu')">Browser Menu</button>
     <button class="mode-tab" id="tabSecurity" onclick="switchMode('security')">Site Information</button>
+    <button class="mode-tab" id="tabDownloads" onclick="switchMode('downloads')">Downloads</button>
   </div>
 
   <div class="panel-content">
@@ -570,6 +571,19 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
         </div>
       </div>
     </div>
+
+    <!-- VIEW 3: Downloads Mode -->
+    <div class="view-section" id="viewDownloads">
+      <div class="card" style="padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span class="card-title">Downloads</span>
+          <button id="sidebarClearDownloadsBtn" onclick="clearDownloads()" style="background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer;">Clear List</button>
+        </div>
+        <div id="sidebarDownloadsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto;">
+          <div id="emptyDownloadsNotice" style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 30px 0;">No active downloads</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -583,40 +597,94 @@ pub const SIDEBAR_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
     }
 
-    function sendAction(action) {
+    function sendAction(action, payload = null) {
       if (action === 'CreateTab') {
         postIpc('CreateTab', { url: null });
       } else if (action === 'OpenSettings') {
         postIpc('OpenSettings');
       } else {
-        postIpc(action);
+        postIpc(action, payload);
       }
     }
+
+    const activeDownloads = new Map();
 
     function switchMode(mode) {
       currentMode = mode;
       const tabMenu = document.getElementById('tabMenu');
       const tabSec = document.getElementById('tabSecurity');
+      const tabDl = document.getElementById('tabDownloads');
       const viewMenu = document.getElementById('viewMenu');
       const viewSec = document.getElementById('viewSecurity');
+      const viewDl = document.getElementById('viewDownloads');
       const title = document.getElementById('panelHeaderTitle');
       const icon = document.getElementById('panelHeaderIcon');
 
+      [tabMenu, tabSec, tabDl].forEach(t => t && t.classList.remove('active'));
+      [viewMenu, viewSec, viewDl].forEach(v => v && v.classList.remove('active'));
+
       if (mode === 'security') {
-        tabSec.classList.add('active');
-        tabMenu.classList.remove('active');
-        viewSec.classList.add('active');
-        viewMenu.classList.remove('active');
+        if (tabSec) tabSec.classList.add('active');
+        if (viewSec) viewSec.classList.add('active');
         title.textContent = 'Site Information';
         icon.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+      } else if (mode === 'downloads') {
+        if (tabDl) tabDl.classList.add('active');
+        if (viewDl) viewDl.classList.add('active');
+        title.textContent = 'Downloads';
+        icon.innerHTML = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>';
+        renderSidebarDownloads();
       } else {
-        tabMenu.classList.add('active');
-        tabSec.classList.remove('active');
-        viewMenu.classList.add('active');
-        viewSec.classList.remove('active');
+        if (tabMenu) tabMenu.classList.add('active');
+        if (viewMenu) viewMenu.classList.add('active');
         title.textContent = 'Evergreen Menu';
         icon.innerHTML = '<circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/>';
       }
+    }
+
+    window.__syncDownloads = function(dl) {
+      if (Array.isArray(dl)) {
+        dl.forEach(item => activeDownloads.set(item.download_id, item));
+      } else if (dl && dl.download_id) {
+        activeDownloads.set(dl.download_id, dl);
+      }
+      renderSidebarDownloads();
+    };
+
+    function renderSidebarDownloads() {
+      const list = document.getElementById('sidebarDownloadsList');
+      if (!list) return;
+      if (activeDownloads.size === 0) {
+        list.innerHTML = '<div id="emptyDownloadsNotice" style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 30px 0;">No active downloads</div>';
+        return;
+      }
+      let html = '';
+      for (const [id, item] of activeDownloads.entries()) {
+        const pct = item.total_bytes > 0 ? Math.min(100, Math.round((item.received_bytes / item.total_bytes) * 100)) : 0;
+        const mbReceived = (item.received_bytes / (1024 * 1024)).toFixed(1);
+        const mbTotal = (item.total_bytes / (1024 * 1024)).toFixed(1);
+        html += `
+          <div class="download-card" id="sidebar-dl-${id}" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 500;">
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;" title="${item.filename}">${item.filename}</span>
+              <span style="color: var(--text-muted); font-size: 11px;">${mbReceived} / ${mbTotal} MB</span>
+            </div>
+            <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+              <div style="height: 100%; width: ${pct}%; background: var(--accent-blue); transition: width 0.2s linear;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+              <span>${item.state === 'InProgress' ? `${pct}% · Downloading` : item.state}</span>
+              ${item.state === 'InProgress' ? `<button onclick="sendAction('CancelDownload', { download_id: ${id} })" style="background: transparent; border: none; color: var(--danger-color); cursor: pointer; font-size: 11px;">Cancel</button>` : `<span style="color: var(--accent-green);">Finished</span>`}
+            </div>
+          </div>
+        `;
+      }
+      list.innerHTML = html;
+    }
+
+    function clearDownloads() {
+      activeDownloads.clear();
+      renderSidebarDownloads();
     }
 
     function openCertificateDialog() {

@@ -4,10 +4,57 @@
 
 use winit::event_loop::EventLoopProxy;
 use wry::WebView;
+use std::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(target_os = "windows")]
+pub struct ActivePermission {
+    pub args: webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2PermissionRequestedEventArgs,
+    pub deferral: webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Deferral,
+}
+
+#[cfg(target_os = "windows")]
+unsafe impl Send for ActivePermission {}
+#[cfg(target_os = "windows")]
+unsafe impl Sync for ActivePermission {}
+
+#[cfg(target_os = "windows")]
+static NEXT_PERMISSION_ID: AtomicU64 = AtomicU64::new(1);
+
+#[cfg(target_os = "windows")]
+static PERMISSION_STORE: Mutex<Option<HashMap<u64, ActivePermission>>> = Mutex::new(None);
+
+#[cfg(target_os = "windows")]
+pub fn resolve_permission(permission_id: u64, allow: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+        COREWEBVIEW2_PERMISSION_STATE_DENY,
+    };
+    if let Ok(mut lock) = PERMISSION_STORE.lock() {
+        if let Some(map) = lock.as_mut() {
+            if let Some(active) = map.remove(&permission_id) {
+                let state = if allow {
+                    COREWEBVIEW2_PERMISSION_STATE_ALLOW
+                } else {
+                    COREWEBVIEW2_PERMISSION_STATE_DENY
+                };
+                unsafe {
+                    let _ = active.args.SetState(state);
+                    let _ = active.deferral.Complete();
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn resolve_permission(_permission_id: u64, _allow: bool) {}
 
 #[cfg(target_os = "windows")]
 pub fn attach_accelerator_keys(
     webview: &WebView,
+    window_id: winit::window::WindowId,
     proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {
     use webview2_com::AcceleratorKeyPressedEventHandler;
@@ -151,7 +198,7 @@ pub fn attach_accelerator_keys(
                     if handled {
                         let _ = unsafe { args.SetHandled(true) };
                         if let Some(s) = shortcut {
-                            let _ = proxy.send_event(crate::BrowserEvent::Shortcut(s.to_string()));
+                            let _ = proxy.send_event(crate::BrowserEvent::Shortcut(window_id, s.to_string()));
                         }
                     }
                 }
@@ -167,6 +214,7 @@ pub fn attach_accelerator_keys(
 #[cfg(target_os = "windows")]
 pub fn attach_navigation_events(
     webview: &WebView,
+    window_id: winit::window::WindowId,
     tab_id: evergreen_core::tabs::TabId,
     proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {
@@ -188,17 +236,18 @@ pub fn attach_navigation_events(
             if unsafe { core_history.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
                 let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
                 if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
-                    let _ = proxy_history.send_event(crate::BrowserEvent::TabNavigated(tab_id, uri_str));
+                    let _ = proxy_history.send_event(crate::BrowserEvent::TabNavigated(window_id, tab_id, uri_str));
                 }
             }
             let mut title_pwstr = windows::core::PWSTR::null();
             if unsafe { core_history.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
                 let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
                 if !title_str.is_empty() {
-                    let _ = proxy_history.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
+                    let _ = proxy_history.send_event(crate::BrowserEvent::TabTitleChanged(window_id, tab_id, title_str));
                 }
             }
             let _ = proxy_history.send_event(crate::BrowserEvent::HistoryChanged(
+                window_id,
                 tab_id,
                 can_back.as_bool(),
                 can_forward.as_bool(),
@@ -216,14 +265,14 @@ pub fn attach_navigation_events(
             if unsafe { core_source.Source(&mut uri_pwstr) }.is_ok() && !uri_pwstr.is_null() {
                 let uri_str = unsafe { uri_pwstr.to_string() }.unwrap_or_default();
                 if !uri_str.is_empty() && !uri_str.starts_with("data:text/html") {
-                    let _ = proxy_source.send_event(crate::BrowserEvent::TabNavigated(tab_id, uri_str));
+                    let _ = proxy_source.send_event(crate::BrowserEvent::TabNavigated(window_id, tab_id, uri_str));
                 }
             }
             let mut title_pwstr = windows::core::PWSTR::null();
             if unsafe { core_source.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
                 let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
                 if !title_str.is_empty() {
-                    let _ = proxy_source.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
+                    let _ = proxy_source.send_event(crate::BrowserEvent::TabTitleChanged(window_id, tab_id, title_str));
                 }
             }
             // Also update history state on source change
@@ -234,6 +283,7 @@ pub fn attach_navigation_events(
                 let _ = core_source.CanGoForward(&mut can_forward);
             }
             let _ = proxy_source.send_event(crate::BrowserEvent::HistoryChanged(
+                window_id,
                 tab_id,
                 can_back.as_bool(),
                 can_forward.as_bool(),
@@ -251,7 +301,7 @@ pub fn attach_navigation_events(
             if unsafe { core_title.DocumentTitle(&mut title_pwstr) }.is_ok() && !title_pwstr.is_null() {
                 let title_str = unsafe { title_pwstr.to_string() }.unwrap_or_default();
                 if !title_str.is_empty() {
-                    let _ = proxy_title.send_event(crate::BrowserEvent::TabTitleChanged(tab_id, title_str));
+                    let _ = proxy_title.send_event(crate::BrowserEvent::TabTitleChanged(window_id, tab_id, title_str));
                 }
             }
             Ok(())
@@ -269,6 +319,7 @@ pub fn attach_navigation_events(
                     if !uri_str.is_empty() {
                         let _ = unsafe { args.SetHandled(true) };
                         let _ = proxy_new_win.send_event(crate::BrowserEvent::Ipc(
+                            window_id,
                             evergreen_core::ipc::UiToHostMessage::CreateTab { url: Some(uri_str) },
                         ));
                     }
@@ -283,6 +334,9 @@ pub fn attach_navigation_events(
         let proxy_perm = proxy.clone();
         let perm_handler = webview2_com::PermissionRequestedEventHandler::create(Box::new(move |_sender, args| {
             if let Some(args) = args {
+                let deferral = unsafe { args.GetDeferral() }.ok();
+                let perm_id = NEXT_PERMISSION_ID.fetch_add(1, Ordering::SeqCst);
+
                 let mut uri_pwstr = windows::core::PWSTR::null();
                 let _ = unsafe { args.Uri(&mut uri_pwstr) };
                 let uri_str = if !uri_pwstr.is_null() {
@@ -301,9 +355,21 @@ pub fn attach_navigation_events(
                     6 => "Clipboard Read",
                     _ => "Site Permission",
                 };
+
+                if let Some(d) = deferral {
+                    if let Ok(mut lock) = PERMISSION_STORE.lock() {
+                        let map = lock.get_or_insert_with(HashMap::new);
+                        map.insert(perm_id, ActivePermission {
+                            args: args.clone(),
+                            deferral: d,
+                        });
+                    }
+                }
+
                 let host = crate::extract_host(&uri_str).unwrap_or_else(|| uri_str.clone());
                 let _ = proxy_perm.send_event(crate::BrowserEvent::PermissionPrompt {
-                    permission_id: 1,
+                    window_id,
+                    permission_id: perm_id,
                     origin: host,
                     permission_kind: kind_str.to_string(),
                 });
@@ -444,12 +510,14 @@ pub fn show_save_file_dialog(default_filename: &str) -> Option<std::path::PathBu
 #[cfg(not(target_os = "windows"))]
 pub fn attach_accelerator_keys(
     _webview: &WebView,
+    _window_id: winit::window::WindowId,
     _proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {}
 
 #[cfg(not(target_os = "windows"))]
 pub fn attach_navigation_events(
     _webview: &WebView,
+    _window_id: winit::window::WindowId,
     _tab_id: evergreen_core::tabs::TabId,
     _proxy: EventLoopProxy<crate::BrowserEvent>,
 ) {}

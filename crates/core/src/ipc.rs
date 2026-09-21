@@ -39,21 +39,32 @@ pub enum UiToHostMessage {
     /// Real-time client-side lifecycle navigation event (e.g. bfcache, popstate, pushState)
     PageNavigated { url: String, title: String },
     /// Tab manipulation
+    /// Tab manipulation
     ReorderTab { from_index: usize, to_index: usize },
-    DetachTabToNewWindow { tab_id: TabId },
+    DetachTabToNewWindow {
+        tab_id: TabId,
+        #[serde(default)]
+        screen_x: Option<f64>,
+        #[serde(default)]
+        screen_y: Option<f64>,
+    },
     /// Zoom actions
     SetZoom { factor: f64 },
     ZoomIn,
     ZoomOut,
     ZoomReset,
     /// Find in page
+    OpenFindInPage,
     FindInPage { query: String, forward: bool },
     CloseFindInPage,
     /// Downloads
     OpenDownloads,
+    ToggleDownloadsSidebar,
     DownloadConfirm { download_id: u64, accept: bool, save_path: Option<String> },
     CancelDownload { download_id: u64 },
     /// Site permissions
+    OpenPermissionPrompt,
+    ClosePermissionPrompt,
     PermissionResponse { permission_id: u64, allow: bool },
     /// Link preview
     TriggerLinkPreview {

@@ -98,7 +98,8 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::OpenCertificateDialog { host: "github.com".to_string() },
         UiToHostMessage::PageNavigated { url: "https://test.com".to_string(), title: "Test".to_string() },
         UiToHostMessage::ReorderTab { from_index: 0, to_index: 2 },
-        UiToHostMessage::DetachTabToNewWindow { tab_id: TabId(1) },
+        UiToHostMessage::DetachTabToNewWindow { tab_id: TabId(1), screen_x: Some(100.0), screen_y: Some(100.0) },
+        UiToHostMessage::OpenFindInPage,
         UiToHostMessage::SetZoom { factor: 1.25 },
         UiToHostMessage::ZoomIn,
         UiToHostMessage::ZoomOut,
@@ -106,8 +107,11 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::FindInPage { query: "rust".to_string(), forward: true },
         UiToHostMessage::CloseFindInPage,
         UiToHostMessage::OpenDownloads,
+        UiToHostMessage::ToggleDownloadsSidebar,
         UiToHostMessage::DownloadConfirm { download_id: 1, accept: true, save_path: Some("C:\\test.bin".to_string()) },
         UiToHostMessage::CancelDownload { download_id: 1 },
+        UiToHostMessage::OpenPermissionPrompt,
+        UiToHostMessage::ClosePermissionPrompt,
         UiToHostMessage::PermissionResponse { permission_id: 10, allow: true },
         UiToHostMessage::TriggerLinkPreview { url: "https://preview.com".to_string(), peek: false },
         UiToHostMessage::FindResult { current: 1, total: 5 },
@@ -289,5 +293,91 @@ fn test_is_process_elevated_returns_false_unelevated() {
     // Under normal user runs or developer testing, this process is not elevated.
     let elevated = is_process_elevated();
     assert!(!elevated, "Process expected to run unelevated in standard environment");
+}
+
+#[test]
+fn test_settings_update_from_partial_json() {
+    let mut s = Settings::default();
+    assert!(s.downloads.ask_where_to_save);
+    assert_eq!(s.search_engine, "duckduckgo");
+    assert!(s.features.enable_find_in_page);
+
+    let partial = serde_json::json!({
+        "search_engine": "google",
+        "askWhereToSave": false,
+        "enable_find_in_page": false
+    });
+    s.update_from_json(&partial);
+
+    assert_eq!(s.search_engine, "google");
+    assert!(!s.downloads.ask_where_to_save);
+    assert!(!s.features.enable_find_in_page);
+    // Other settings untouched
+    assert!(s.features.enable_downloads_manager);
+    assert_eq!(s.appearance.default_zoom_level, 1.0);
+}
+
+#[test]
+fn test_tab_manager_extract_and_insert() {
+    let mut tm1 = TabManager::new();
+    let id1 = tm1.create_tab("https://window1-tab1.com", 100);
+    let id2 = tm1.create_tab("https://window1-tab2.com", 200);
+
+    assert_eq!(tm1.tabs().len(), 2);
+    assert_eq!(tm1.active_tab_id(), Some(id2));
+
+    // Extract tab 1
+    let extracted = tm1.extract_tab(id1).expect("Failed to extract tab");
+    assert_eq!(extracted.url, "https://window1-tab1.com");
+    assert_eq!(tm1.tabs().len(), 1);
+    assert_eq!(tm1.active_tab_id(), Some(id2));
+
+    // Insert into another tab manager
+    let mut tm2 = TabManager::new();
+    let id_in_tm2 = tm2.insert_tab(extracted, None);
+    assert_eq!(tm2.tabs().len(), 1);
+    assert_eq!(tm2.tabs()[0].url, "https://window1-tab1.com");
+    assert_eq!(tm2.active_tab_id(), Some(id_in_tm2));
+}
+
+#[test]
+fn test_plugin_registry_and_extensibility() {
+    use evergreen_core::plugins::{BrowserPlugin, PluginMetadata, PluginRegistry};
+
+    struct TestAdBlockPlugin;
+    impl BrowserPlugin for TestAdBlockPlugin {
+        fn metadata(&self) -> PluginMetadata {
+            PluginMetadata {
+                id: "adblock_test".to_string(),
+                name: "Test AdBlocker".to_string(),
+                description: "Test plugin for custom forks".to_string(),
+                version: "1.0.0".to_string(),
+                author: "ForkDev".to_string(),
+                is_core: false,
+                enabled_by_default: true,
+            }
+        }
+        fn is_enabled(&self, _settings: &Settings) -> bool {
+            true
+        }
+        fn content_script(&self) -> Option<&'static str> {
+            Some("console.log('AdBlock active');")
+        }
+    }
+
+    let mut registry = PluginRegistry::new();
+    registry.register(TestAdBlockPlugin);
+
+    assert_eq!(registry.plugins().len(), 1);
+    let meta = registry.plugins()[0].metadata();
+    assert_eq!(meta.id, "adblock_test");
+    assert_eq!(meta.name, "Test AdBlocker");
+
+    let settings = Settings::default();
+    let enabled = registry.enabled_plugins(&settings);
+    assert_eq!(enabled.len(), 1);
+
+    let script = registry.combined_content_scripts(&settings);
+    assert!(script.contains("AdBlock active"));
 }
 
