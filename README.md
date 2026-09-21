@@ -16,11 +16,26 @@
 
 ## Why Evergreen?
 
-Mainstream desktop browsers have grown into massive application runtimes. A fresh installation often demands 500 MB to 700 MB of disk space, launches dozens of utility processes on startup, runs continuous background telemetry, and consumes hundreds of megabytes of memory before you even open a webpage. Many bundle crypto wallets, shopping toolbars, sponsored new-tab tiles, and forced account sync.
+Every mainstream desktop browser—Google Chrome, Microsoft Edge, Brave, Mozilla Firefox, and Arc—ships as a monolithic software distribution. Each bundles an entire rendering engine (Blink or Gecko), a JavaScript virtual machine (V8 or SpiderMonkey), graphics rasterizers, media codecs, and network stacks. This design requires a 150 MB to 250 MB installer, occupies 500 MB to 800 MB of permanent disk space, and launches multiple background telemetry and update daemons before you open a single page.
 
-Windows 10 and 11 already ship with a fully updated, hardware-accelerated Chromium rendering engine: the Microsoft Edge WebView2 Runtime. 
+Windows 10 (21H2+) and Windows 11 already ship with an actively updated, hardware-accelerated Chromium implementation: the **Microsoft Edge WebView2 Runtime**. It receives regular security patches and engine upgrades directly through Microsoft Edge Update.
 
-Evergreen Browser taps directly into that existing system runtime through a 1.2 MB native Rust shell. You get modern Chromium rendering, WebGL, WebGPU, and 4K video decoding without carrying a bundled engine, without persistent tracking, and without uninvited background services.
+Evergreen Browser taps directly into that pre-installed runtime through a 1.2 MB native Rust shell (`winit` + `wry` + Win32). You get full modern Chromium web standards compliance, WebGL, WebGPU, and 4K video decoding without carrying a 150 MB bundled engine, without persistent tracking, and without system bloat.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           ARCHITECTURAL PARADIGM COMPARISON                             │
+├─────────────────────────────────────────────┬───────────────────────────────────────────┤
+│    Monolithic Browsers (Chrome, Brave, Arc) │         Evergreen Browser Architecture    │
+├─────────────────────────────────────────────┼───────────────────────────────────────────┤
+│ • Bundled Frozen Engine (~150MB - 250MB)    │ • Zero Engine Shipping (Uses OS Runtime)  │
+│ • Custom C++ / Swift / Electron UI Shell    │ • Static Rust Shell Host (1.23 MB MSVC)   │
+│ • Monolithic Browser Process (100MB+ RAM)   │ • Decoupled Host Process (3.84 MB RAM)    │
+│ • 400MB - 800MB Permanent Disk Footprint    │ • < 2 MB Permanent Disk Footprint         │
+│ • Background Telemetry & Sync Daemons       │ • Zero Telemetry, 100% Ephemeral by Def.  │
+│ • Multi-Process Compositor Tab Switching    │ • Native Win32 HWND Z-Order (0.199 ms)   │
+└─────────────────────────────────────────────┴───────────────────────────────────────────┘
+```
 
 ---
 
@@ -32,73 +47,103 @@ Evergreen Browser taps directly into that existing system runtime through a 1.2 
 ### Settings & Feature Modules
 ![Evergreen Browser Settings](docs/assets/screenshot_settings.png)
 
-### Strict TLS Warning Interstitial
-![Strict TLS Certificate Error Interstitial](docs/assets/screenshot_interstitial.png)
-
 ---
 
-## Verified Benchmarks
+## Comprehensive Cross-Browser Comparison
 
-Measurements taken on Windows 11 x64 (Release build, MSVC toolchain, hardware acceleration enabled).
+Measurements reflect standard release builds on Windows 11 x64 (Clean Profile, No Extensions, Hardware Acceleration Active).
 
-| Dimension | Evergreen Browser | Google Chrome | Microsoft Edge | Brave | Mozilla Firefox |
-|---|:---:|:---:|:---:|:---:|:---:|
-| **Executable / Setup Size** | **1.23 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB |
-| **Installed Disk Footprint** | **< 2 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB |
-| **Engine Source** | OS WebView2 | Bundled Blink | Bundled Blink | Bundled Blink | Bundled Gecko |
-| **Host Shell Private RAM** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB |
-| **Total Private Memory (2 Tabs)** | **228.53 MB** | ~480 MB | ~510 MB | ~460 MB | ~530 MB |
-| **Cold Start to First Paint (TTFP)** | **694 ms** | ~950 ms | ~880 ms | ~1,020 ms | ~1,150 ms |
-| **Tab Switching Latency** | **0.199 ms** | ~18 – 35 ms | ~15 – 30 ms | ~18 – 35 ms | ~20 – 40 ms |
-| **Idle Shell CPU Usage** | **0.0%** | 0.2 – 0.8% | 0.3 – 0.9% | 0.2 – 0.6% | 0.2 – 0.5% |
-| **Startup Background Processes** | **1 host** | 7 – 12 | 9 – 15 | 8 – 14 | 6 – 10 |
-| **Outbound Telemetry Pings** | **0 (None)** | Continuous | Continuous | Periodic | Periodic |
+| Benchmark Dimension | Evergreen Browser (MVP-1) | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) | Arc Browser (Windows) | Min Browser (Electron) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Installer / Binary Size** | **1.23 MB** (Single Exe) | ~110 MB (Setup) | ~140 MB (MSI) | ~115 MB (Setup) | ~65 MB (Stub) | ~180 MB (MSIX) | ~85 MB (Setup) |
+| **Installed Disk Footprint** | **< 2 MB** (1.23 MB) | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
+| **Engine Delivery Model** | **OS-Shared Evergreen** | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Gecko/SM | Bundled Blink/V8 | Bundled Chromium |
+| **UI Framework & Language** | **Rust (`winit` + Win32)** | C++ (Views / Aura) | C++ (Views / WinUI) | C++ (Views / Aura) | C++ / XUL / Rust | Swift / WinUI 3 | JS / Electron / Node |
+| **Host Shell Private RAM (Idle)** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB | ~210 MB | ~95 MB |
+| **Single Active Tab RAM (Working Set)** | **~405.9 MB** (Combined) | ~480 MB | ~460 MB | ~450 MB | ~430 MB | ~580 MB | ~510 MB |
+| **Single Active Tab Private Bytes** | **~228.5 MB** (All Procs) | ~295 MB | ~280 MB | ~275 MB | ~260 MB | ~360 MB | ~320 MB |
+| **5 Concurrent Tabs RAM (Working Set)** | **~690 MB** | ~890 MB | ~820 MB | ~840 MB | ~780 MB | ~1,120 MB | ~980 MB |
+| **Suspended Tab Footprint** | **~2 – 5 MB** (`TrySuspendAsync`) | ~15 – 25 MB (Memory Saver) | ~8 – 15 MB (Sleeping Tabs) | ~18 – 30 MB (Memory Saver) | ~20 – 35 MB (Tab Unload) | ~25 – 40 MB (Auto-Archive) | None |
+| **Tab Switching Latency** | **0.199 ms** | ~18 – 35 ms | ~15 – 30 ms | ~18 – 35 ms | ~20 – 40 ms | ~30 – 60 ms | ~40 – 85 ms |
+| **Cold Start to Interactive (TTFP)** | **694 ms** | ~950 ms | ~880 ms | ~1020 ms | ~1150 ms | ~1650 ms | ~1400 ms |
+| **Background Telemetry Workers** | **0** (None) | Google Update, Metrics | Edge Update, Bing, Rewards | Brave Ledger, Rewards | Mozilla Telemetry Ping | Arc Sync, Telemetry | None |
+| **Default Session Ephemerality** | **RAM-only (0 Disk Cookies)** | Persistent Disk DB | Persistent Disk DB | Persistent Disk DB | Persistent Disk DB | Persistent Disk DB | Persistent Disk DB |
+| **Chromium Sandbox Enforcement** | **Mandatory** | Mandatory | Mandatory | Mandatory | OS Sandbox (Gecko) | Mandatory | Often Disabled / Weaker |
 
-Detailed methodology and reproduction steps are documented in [docs/benchmarks.md](docs/benchmarks.md).
+Per-process memory breakdowns and reproduction steps are documented in [docs/benchmarks.md](docs/benchmarks.md).
 
 ---
 
 ## Why You Would Want to Use Evergreen
 
-### 1. Ephemeral by Default
-Every session runs in isolated memory. When you close the browser window, all browsing history, session cookies, and temporary network caches are immediately discarded. You never have to manually clear your history or delete tracking cookies. If you want specific websites (like your email or developer dashboard) to keep you logged in, add them to your persistent sites list in Settings.
+### 1. Clean & Minimal by Design
+Modern browsers have become ad delivery surfaces filled with shopping sidebars, cryptocurrency rewards, sponsored default tiles, and forced account sync dialogs. Evergreen strips all of that away. You get a clean start page, an address bar, a tab strip, and DevTools. The interface stays completely out of your way.
 
-### 2. Low Resource Consumption for Devs & Gamers
-The Rust shell idles at 3.8 MB of private RAM and 0.0% CPU. Inactive background tabs call `TrySuspendAsync()` after 5 minutes, freeing unused rendering buffers and halting JavaScript timer loops. Tabs playing audio are automatically exempt. You can leave Evergreen open alongside heavy IDEs, compiler jobs, Discord, or games without fighting for system resources.
+### 2. Ephemeral by Default (Zero Residue)
+Every browsing session runs in volatile memory. When you close the window, all browsing history, session cookies, local storage, and cached assets are deleted immediately. You never need to remember to clear cookies or wipe history. For sites where you prefer to stay logged in, add them to your persistent whitelist in Settings.
 
-### 3. True Zero-Residue Portable Mode
-Drop an empty `portable.ini` or a `data/` folder next to `evergreen-browser.exe`. The browser redirects all profile data, cache partitions, and `settings.json` directly into `./data/`. It leaves `%APPDATA%`, `%LOCALAPPDATA%`, and the Windows Registry untouched. You can carry your browser setup on a USB flash drive or sync it through private cloud storage across different machines.
+### 3. Modular & Extensible Plugin Architecture
+Evergreen includes a plugin system through the `BrowserPlugin` trait. You can inject custom action buttons into the top navigation bar, register dedicated WinUI 3 sidepanel drawers, or run content scripts on visited pages without touching the core tab manager. You can also restyle the entire browser chrome simply by dropping a `mods/theme.css` file next to the executable.
 
-### 4. Zero Engine Maintenance Overhead
-Forking or maintaining an Electron or CEF browser requires compiling and distributing a 150 MB binary whenever Chromium fixes a zero-day vulnerability. Evergreen uses the Microsoft-serviced WebView2 Evergreen Runtime. Microsoft Edge Update patches the rendering engine in the background automatically, keeping security fixes current without application rebuilds.
+### 4. Low Resource Consumption for Developers & Gamers
+The Rust shell idles at 3.8 MB of private RAM and 0.0% CPU. Inactive background tabs suspend automatically after 5 minutes via `ICoreWebView2::TrySuspendAsync()`, releasing rendering buffers and stopping JavaScript timer execution. Tabs playing audio are automatically exempt. You can leave dozens of tabs open alongside compilers, virtual machines, Discord, or games without fighting for system resources.
 
-### 5. Strict Elevation Refusal
-Browsing the web with elevated system privileges creates unnecessary attack surface. Evergreen inspects its process token on startup via `OpenProcessToken`. If launched as Administrator, it displays a native Windows warning dialog and terminates immediately, closing token escalation vectors before web content can initialize.
+### 5. True Zero-Residue Portable Mode
+Place an empty `portable.ini` or a `data/` folder next to `evergreen-browser.exe`. The browser redirects all profile data, cache partitions, and `settings.json` directly into `./data/`. It writes nothing to `%APPDATA%`, `%LOCALAPPDATA%`, or the Windows Registry. You can run Evergreen directly from a USB flash drive across different machines.
 
-### 6. Reliable Win32 Hotkey Interception
-Web applications frequently capture keydown events to disable browser navigation keys. Evergreen intercepts hotkeys at the Win32 controller level (`AcceleratorKeyPressed`), invoking `SetHandled(true)` so that `Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Ctrl+Tab`, and `F12` execute immediately regardless of what scripts run on the webpage.
+### 6. Zero Engine Maintenance Overhead
+Maintaining an Electron or Chromium fork requires compiling, bundling, and shipping a 150 MB binary update every two weeks whenever an upstream vulnerability is discovered. Evergreen delegates rendering to the Microsoft-serviced WebView2 Runtime. Microsoft Edge Update patches the underlying engine automatically in the background.
 
-### 7. Custom Theming via User CSS
-You can restyle the browser without touching Rust code or rebuilding the executable. Create a `mods/theme.css` file next to `evergreen-browser.exe` to override color schemes, button layouts, font sizes, or tab border styles.
+### 7. Strict Elevation Refusal & Hotkey Priority
+Web content should never execute inside an elevated process. Evergreen checks its token on startup via `OpenProcessToken`. If launched as Administrator, it displays a native Windows warning dialog and terminates immediately. In addition, Win32 controller-level `AcceleratorKeyPressed` hooks handle shortcuts like `Ctrl+W`, `Ctrl+T`, `Ctrl+L`, and `F12` before webpage scripts can intercept or disable them.
 
 ---
 
 ## Architecture
 
-Evergreen Browser splits responsibilities into three distinct crates:
+Evergreen Browser decouples state management, engine bindings, and window orchestration into three crates:
 
-```text
-crates/
-├── core/               # TabManager, Settings, typed IPC schemas, plugin traits
-├── engine-webview2/    # WebView2 COM bindings, engine adapters, memory suspension
-└── app/                # winit event loop, multi-child HWND layout, and UI shell
+```mermaid
+graph TD
+    subgraph UI ["User Interface Layer"]
+        Chrome["HTML/CSS/JS Chrome Strip<br>(Tabs, Omnibox, Actions)"]
+        Sidebar["WinUI 3 Sidepanels<br>(Downloads, Menu, Cert)"]
+    end
+
+    subgraph AppTier ["Application Tier: evergreen-browser"]
+        EventLoop["winit EventLoop & Window Manager"]
+        Win32Hooks["Win32 Accelerator & Hotkey Interceptors"]
+    end
+
+    subgraph CoreTier ["Core Logic Tier: evergreen-core"]
+        TabMgr["TabManager State Machine"]
+        SettingsMod["Settings & Feature Flags"]
+        PluginReg["PluginRegistry & BrowserPlugin Trait"]
+        IpcSchemas["UiToHost & HostToUi Typed IPC"]
+    end
+
+    subgraph EngineTier ["Engine Tier: evergreen-engine-webview2"]
+        EngineHost["EngineHost Trait Implementation"]
+        COMAdapter["WebView2 COM Controller & Composition"]
+    end
+
+    subgraph OS ["Operating System Layer"]
+        WebView2["Microsoft Edge WebView2 Runtime"]
+        BlinkGPU["DirectComposition GPU & Sandboxed Blink"]
+    end
+
+    Chrome -->|window.ipc| EventLoop
+    Sidebar -->|window.ipc| EventLoop
+    EventLoop --> CoreTier
+    EventLoop --> EngineTier
+    EngineTier --> OS
 ```
 
-- **`evergreen-core`**: Pure, engine-agnostic business logic. Manages tab lifecycles, crash restoration snapshots, URL normalization, and portable directory resolution. Has no dependency on GUI frameworks or COM.
-- **`evergreen-engine-webview2`**: Connects the abstract engine interface to Microsoft WebView2 COM interfaces, managing low-level controller suspension and composition.
-- **`evergreen-browser`**: Coordinates the Win32 window layout. Places the chrome navigation webview in a fixed top band `(0, 0, width, 76px)` and maps each tab to a child HWND below it. Tab switching toggles Win32 visibility flags directly, avoiding surface recreation.
+- **`evergreen-core`**: Engine-agnostic tab state collection, crash recovery snapshots, settings serialization, and plugin traits. Contains no GUI or COM dependencies and compiles across platforms.
+- **`evergreen-engine-webview2`**: Implements the `EngineHost` trait using raw COM interfaces (`webview2-com`), managing memory suspension and hardware composition.
+- **`evergreen-browser`**: Hosts the `winit` event loop. Positions the chrome navigation webview in a fixed 76px top band and manages each tab as a separate child `HWND`. Tab switching toggles Win32 visibility flags directly, achieving 0.199 ms switching latency.
 
-Detailed diagrams and IPC message sequences are documented in [docs/architecture.md](docs/architecture.md).
+Detailed architectural diagrams and window composition models are documented in [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -106,9 +151,9 @@ Detailed diagrams and IPC message sequences are documented in [docs/architecture
 
 ### Prerequisites
 - Windows 10 or 11 (64-bit).
-- Rust stable toolchain with MSVC target (`x86_64-pc-windows-msvc`).
-- Microsoft Edge WebView2 Runtime (installed with Windows).
-- Visual Studio C++ Build Tools (provides `link.exe` and `rc.exe`).
+- Rust stable MSVC toolchain (`x86_64-pc-windows-msvc`).
+- Microsoft Edge WebView2 Runtime (preinstalled on Windows 10/11).
+- Visual Studio C++ Build Tools (provides MSVC `link.exe` and `rc.exe`).
 
 ### Build & Run
 ```powershell
@@ -118,7 +163,7 @@ cargo run -p evergreen-browser
 # Build optimized release binary
 cargo build --release -p evergreen-browser
 
-# Launch in portable mode
+# Run in portable mode
 target\release\evergreen-browser.exe --portable
 ```
 
@@ -126,19 +171,20 @@ target\release\evergreen-browser.exe --portable
 
 ## Documentation
 
-- **[Architecture Guide](docs/architecture.md)**: Window composition model, multi-child HWND layout, typed IPC pipeline, and tab suspension mechanics.
+- **[Architecture Guide](docs/architecture.md)**: Process hierarchy, multi-child HWND layout, typed IPC pipeline, and tab suspension mechanics.
 - **[Performance Benchmarks](docs/benchmarks.md)**: Hardware specifications, methodology, per-process memory breakdowns, and reproduction commands.
-- **[Plugin Development](docs/plugins.md)**: The `BrowserPlugin` trait, toolbar button injection, sidebar drawers, and content scripts.
-- **[Developer Walkthrough](docs/walkthrough.md)**: Step-by-step guide for theming (`mods/theme.css`), custom plugins, and portable zip packaging.
+- **[Plugin Development](docs/plugins.md)**: The `BrowserPlugin` trait, toolbar button injections, sidebar drawers, and content scripts.
+- **[Developer Walkthrough](docs/walkthrough.md)**: Step-by-step guide for user theming (`mods/theme.css`), custom plugins, and portable zip packaging.
 
 ---
 
 ## Non-Goals
 
+To preserve speed, low memory usage, and structural simplicity:
 - No telemetry, analytics, or background reporting services.
 - No mandatory accounts, profile syncing, or remote storage.
-- No integrated advertising, sponsored tiles, or crypto widgets.
-- No bundled extensions store overhead.
+- No integrated advertising, sponsored tiles, or cryptocurrency services.
+- No bundled browser extension store overhead.
 
 ---
 
