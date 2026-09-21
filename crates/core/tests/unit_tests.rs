@@ -88,6 +88,7 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::GoBack,
         UiToHostMessage::GoForward,
         UiToHostMessage::Reload,
+        UiToHostMessage::ReloadTab { tab_id: TabId(7) },
         UiToHostMessage::Stop,
         UiToHostMessage::OpenDevTools,
         UiToHostMessage::OpenMenu { x: 100.0, y: 50.0 },
@@ -161,6 +162,9 @@ fn test_ipc_serde_host_to_ui_all_variants() {
             can_go_back: true,
             can_go_forward: false,
             is_loading: false,
+        },
+        HostToUiMessage::TabCrashed {
+            tab_id: TabId(1),
         },
         HostToUiMessage::CommandOutput {
             command: "update".to_string(),
@@ -380,4 +384,64 @@ fn test_plugin_registry_and_extensibility() {
     let script = registry.combined_content_scripts(&settings);
     assert!(script.contains("AdBlock active"));
 }
+
+#[test]
+fn test_portable_mode_detection_and_data_directory() {
+    use evergreen_core::env::{is_portable_mode, resolve_data_directory};
+
+    let temp_dir = std::env::temp_dir().join(format!("evergreen_test_portable_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    // Default: false without args
+    assert!(!is_portable_mode(&temp_dir, &[]));
+    assert!(!is_portable_mode(&temp_dir, &["--other-flag".to_string()]));
+
+    // Portable flag in args
+    assert!(is_portable_mode(&temp_dir, &["--portable".to_string()]));
+    let dir = resolve_data_directory(&temp_dir, &["--portable".to_string()]);
+    assert_eq!(dir, temp_dir.join("user_data"));
+
+    // portable.lock file
+    let lock_file = temp_dir.join("portable.lock");
+    std::fs::write(&lock_file, "").unwrap();
+    assert!(is_portable_mode(&temp_dir, &[]));
+    let dir_lock = resolve_data_directory(&temp_dir, &[]);
+    assert_eq!(dir_lock, temp_dir.join("user_data"));
+    let _ = std::fs::remove_file(&lock_file);
+
+    // user_data directory
+    let user_data_dir = temp_dir.join("user_data");
+    std::fs::create_dir_all(&user_data_dir).unwrap();
+    assert!(is_portable_mode(&temp_dir, &[]));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_tab_manager_crash_and_snapshot_restore() {
+    let mut tm = TabManager::new();
+    let id1 = tm.create_tab("https://alpha.example", 100);
+    let _id2 = tm.create_tab("https://beta.example", 200);
+
+    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Inactive);
+    assert_eq!(tm.tabs()[1].status, evergreen_core::tabs::TabStatus::Active);
+
+    // Mark tab 1 crashed
+    tm.mark_tab_crashed(id1);
+    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Crashed);
+
+    // Snapshot
+    let snapshot = tm.snapshot();
+    assert_eq!(snapshot.len(), 2);
+    assert_eq!(snapshot[0].url, "https://alpha.example");
+    assert_eq!(snapshot[0].status, evergreen_core::tabs::TabStatus::Crashed);
+    assert_eq!(snapshot[1].url, "https://beta.example");
+
+    // Restore into a fresh TabManager
+    let mut tm_restored = TabManager::new();
+    tm_restored.restore_from_snapshot(snapshot);
+    assert_eq!(tm_restored.tabs().len(), 2);
+    assert_eq!(tm_restored.tabs()[0].url, "https://alpha.example");
+    assert_eq!(tm_restored.tabs()[1].url, "https://beta.example");
+}
+
 

@@ -227,18 +227,21 @@
       transition: background 0.1s ease, color 0.1s ease, transform 0.1s ease;
     }
 
-    button:focus,
-    .nav-btn:focus,
-    .tab-add-btn:focus,
-    .omnibox-lock-btn:focus {
-      outline: none;
+    :focus-visible {
+      outline: 2px solid var(--accent) !important;
+      outline-offset: 2px !important;
     }
 
-    .nav-btn:focus-visible,
-    .tab-add-btn:focus-visible,
-    .omnibox-lock-btn:focus-visible {
-      outline: 1.5px solid var(--accent);
-      outline-offset: 1px;
+    .tab:focus-visible {
+      outline: 2px solid var(--accent) !important;
+      outline-offset: -2px !important;
+    }
+
+    button:focus:not(:focus-visible),
+    .nav-btn:focus:not(:focus-visible),
+    .tab-add-btn:focus:not(:focus-visible),
+    .omnibox-lock-btn:focus:not(:focus-visible) {
+      outline: none;
     }
 
     .nav-btn:hover:not(:disabled) {
@@ -651,15 +654,15 @@
 </head>
 <body>
   <!-- Tab Strip -->
-  <div class="tab-strip" id="tabStrip" role="tablist" aria-label="Browser tabs">
-    <div id="tabsContainer"></div>
-    <button class="new-tab-btn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New Tab">
+  <div class="tab-strip" id="tabStrip">
+    <div id="tabsContainer" role="tablist" aria-label="Browser tabs"></div>
+    <button class="new-tab-btn" id="newTabBtn" onclick="createNewTab()" title="New Tab (Ctrl+T)" aria-label="New tab">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
 
   <!-- Navigation Bar -->
-  <div class="nav-bar">
+  <div class="nav-bar" role="toolbar" aria-label="Navigation controls">
     <button class="nav-btn" id="btnBack" onclick="goBack()" disabled title="Back (Alt+Left)" aria-label="Back">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
     </button>
@@ -688,6 +691,10 @@
         type="text"
         class="omnibox"
         id="omnibox"
+        role="combobox"
+        aria-expanded="false"
+        aria-autocomplete="list"
+        aria-haspopup="listbox"
         placeholder="Search DuckDuckGo or enter address"
         aria-label="Address and search bar"
         onkeydown="handleOmniboxKey(event)"
@@ -747,6 +754,9 @@
       <button class="permission-close" id="permissionDismissBtn" onclick="dismissPermission()">✕</button>
     </div>
   </div>
+
+  <!-- Live Status & Link Destination Preview Bar (Windows Narrator live region) -->
+  <div id="statusPreviewBar" role="status" aria-live="polite" style="display:none; position:fixed; bottom:0; left:0; max-width:500px; padding:3px 10px; background:rgba(20,20,26,0.96); color:#cbd5e1; font-size:11px; z-index:99999; border-top-right-radius:6px; border:1px solid rgba(255,255,255,0.12); pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
 
   <script>
     let activeTabId = null;
@@ -1146,12 +1156,14 @@
         tabEl.dataset.index = index;
         container.appendChild(tabEl);
 
+        tabEl.setAttribute('tabindex', isActive ? '0' : '-1');
+        tabEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tabEl.setAttribute('aria-controls', 'tabpanel-' + tab.id);
+
         if (isActive) {
           tabEl.classList.add('active');
-          tabEl.setAttribute('aria-selected', 'true');
         } else {
           tabEl.classList.remove('active');
-          tabEl.setAttribute('aria-selected', 'false');
         }
 
         const iconEl = tabEl.querySelector('.tab-favicon');
@@ -1188,6 +1200,13 @@
             tabEl.setAttribute('aria-keyshortcuts', `Control+${shortcutNum}`);
           } else {
             tabEl.removeAttribute('aria-keyshortcuts');
+          }
+
+          const closeBtn = tabEl.querySelector('.tab-close');
+          if (closeBtn) {
+            closeBtn.setAttribute('role', 'button');
+            closeBtn.setAttribute('tabindex', '-1');
+            closeBtn.setAttribute('aria-label', `Close ${displayTitle}`);
           }
         }
 
@@ -1243,7 +1262,36 @@
       }
     });
 
+    function setupTablistKeyboardNav() {
+      const container = document.getElementById('tabsContainer');
+      container.addEventListener('keydown', (e) => {
+        const tabs = Array.from(container.querySelectorAll('.tab'));
+        if (!tabs.length) return;
+        const currentIdx = tabs.findIndex(t => t === document.activeElement);
+        if (currentIdx === -1) return;
+
+        let targetIdx = -1;
+        if (e.key === 'ArrowRight') {
+          targetIdx = (currentIdx + 1) % tabs.length;
+        } else if (e.key === 'ArrowLeft') {
+          targetIdx = (currentIdx - 1 + tabs.length) % tabs.length;
+        } else if (e.key === 'Home') {
+          targetIdx = 0;
+        } else if (e.key === 'End') {
+          targetIdx = tabs.length - 1;
+        }
+
+        if (targetIdx !== -1) {
+          e.preventDefault();
+          tabs[targetIdx].focus();
+          const targetTabId = parseInt(tabs[targetIdx].id.replace('tab-', ''), 10);
+          switchTab(targetTabId);
+        }
+      });
+    }
+
     window.onload = () => {
+      setupTablistKeyboardNav();
       postIpc('ChromeReady');
     };
   </script>

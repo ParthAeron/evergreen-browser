@@ -114,6 +114,13 @@ pub(crate) enum BrowserEvent {
         origin: String,
         permission_kind: String,
     },
+    TabCrashed(WindowId, TabId, i32),
+    ServerCertificateError {
+        window_id: WindowId,
+        tab_id: TabId,
+        request_uri: String,
+        error_status: i32,
+    },
 }
 
 struct WindowContext {
@@ -427,12 +434,16 @@ pub(crate) fn extract_host(url: &str) -> Option<String> {
     }
 }
 
+fn get_data_directory() -> std::path::PathBuf {
+    let exe_dir = std::env::current_exe()
+        .map(|p| p.parent().unwrap_or(&p).to_path_buf())
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let args: Vec<String> = std::env::args().collect();
+    evergreen_core::env::resolve_data_directory(&exe_dir, &args)
+}
+
 fn get_settings_path() -> std::path::PathBuf {
-    if let Ok(appdata) = std::env::var("APPDATA") {
-        std::path::PathBuf::from(appdata).join("evergreen-browser").join("settings.json")
-    } else {
-        std::path::PathBuf::from("settings.json")
-    }
+    get_data_directory().join("settings.json")
 }
 
 struct BrowserApp {
@@ -1292,6 +1303,19 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     });
                 }
+                UiToHostMessage::ReloadTab { tab_id } => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        if let Some(tab) = win.tab_manager.tabs_mut().iter_mut().find(|t| t.id == tab_id) {
+                            if tab.status == evergreen_core::tabs::TabStatus::Crashed {
+                                tab.status = evergreen_core::tabs::TabStatus::Active;
+                            }
+                        }
+                        if let Some(wv) = win.tabs.get(&tab_id) {
+                            let _ = wv.reload();
+                        }
+                        win.sync_ui_state();
+                    }
+                }
             },
             BrowserEvent::TabTitleChanged(win_id, tab_id, title) => {
                 if let Some(win) = self.windows.get_mut(&win_id) {
@@ -1356,10 +1380,60 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
             }
+            BrowserEvent::TabCrashed(win_id, tab_id, kind) => {
+                eprintln!("[TAB CRASH CONTAINMENT] Window {:?}, Tab {:?}, kind={}", win_id, tab_id, kind);
+                if let Some(win) = self.windows.get_mut(&win_id) {
+                    win.tab_manager.mark_tab_crashed(tab_id);
+                    win.sync_ui_state();
+
+                    // If the entire browser engine process exited (kind == 0), reconstruct state from snapshot
+                    if kind == 0 {
+                        eprintln!("[ENGINE PROCESS RECONSTRUCTION] Reconstructing tabs from snapshot");
+                        let snapshot = win.tab_manager.snapshot();
+                        for tab in snapshot {
+                            if let Some(wv) = win.tabs.get(&tab.id) {
+                                let _ = wv.load_url(&tab.url);
+                            }
+                        }
+                    } else if let Some(wv) = win.tabs.get(&tab_id) {
+                        // Render per-tab recovery banner directly inside the crashed tab's webview
+                        let crash_banner_html = format!(
+                            r#"data:text/html,<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tab Stopped Responding</title><style>body{{margin:0;padding:0;background:%23181820;color:%23f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;}}.box{{text-align:center;max-width:480px;padding:32px;background:%231f1f2a;border:1px solid rgba(255,255,255,0.08);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}}.icon{{font-size:40px;margin-bottom:12px;}}h1{{font-size:20px;font-weight:600;margin:0 0 8px 0;color:%23f87171;}}p{{font-size:13px;color:%2394a3b8;line-height:1.5;margin:0 0 24px 0;}}button{{background:%233b82f6;color:white;border:none;border-radius:6px;padding:10px 20px;font-size:13px;font-weight:500;cursor:pointer;}}button:hover{{background:%232563eb;}}</style></head><body><div class="box"><div class="icon">⚠️</div><h1>Page Stopped Responding</h1><p>This web page or renderer process encountered a problem and had to be halted. Other tabs and your browser session remain safe.</p><button onclick="if(window.ipc){{window.ipc.postMessage(JSON.stringify({{action:'ReloadTab',payload:{{tab_id:{}}}}}));}}else{{location.reload();}}">Reload Page</button></div></body></html>"#,
+                            tab_id.0
+                        );
+                        let _ = wv.load_url(&crash_banner_html);
+                    }
+                }
+            }
+            BrowserEvent::ServerCertificateError { window_id, tab_id, request_uri, error_status } => {
+                eprintln!("[STRICT TLS] Certificate error {} for {} on Tab {:?}", error_status, request_uri, tab_id);
+                if let Some(win) = self.windows.get(&window_id) {
+                    if let Some(wv) = win.tabs.get(&tab_id) {
+                        let warning_html = format!(
+                            r#"data:text/html,<!DOCTYPE html><html><head><meta charset="utf-8"><title>Security Warning: Untrusted Certificate</title><style>body{{margin:0;padding:0;background:%23181820;color:%23f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;}}.box{{text-align:center;max-width:520px;padding:36px;background:%231f1f2a;border:1px solid rgba(239,68,68,0.3);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);}}.icon{{font-size:44px;margin-bottom:12px;}}h1{{font-size:20px;font-weight:600;margin:0 0 8px 0;color:%23ef4444;}}p{{font-size:13px;color:%2394a3b8;line-height:1.5;margin:0 0 16px 0;}}.uri{{font-size:12px;color:%23fca5a5;font-family:monospace;word-break:break-all;margin-bottom:24px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;}}button{{background:%23ef4444;color:white;border:none;border-radius:6px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;}}button:hover{{background:%23dc2626;}}</style></head><body><div class="box"><div class="icon">🔒⛔</div><h1>Untrusted Security Certificate</h1><p>Evergreen Browser has prevented connection to this site because its TLS certificate is invalid, expired, or self-signed. Attackers might be trying to steal your information.</p><div class="uri">{}</div><button onclick="if(window.history.length>1){{window.history.back();}}else{{location.href='evergreen://newtab';}}">Go Back to Safety</button></div></body></html>"#,
+                            request_uri
+                        );
+                        let _ = wv.load_url(&warning_html);
+                    }
+                }
+            }
             BrowserEvent::Shortcut(win_id, shortcut) => {
                 match shortcut.as_str() {
                     "Ctrl+T" => self.handle_create_tab(win_id, None),
+                    "Ctrl+Shift+T" => {
+                        let target_url = if let Some(win) = self.windows.get_mut(&win_id) {
+                            win.tab_manager.pop_last_closed()
+                        } else {
+                            None
+                        };
+                        if let Some(url) = target_url {
+                            self.handle_create_tab(win_id, Some(url));
+                        }
+                    }
                     "Ctrl+N" => {
+                        self.create_browser_window(event_loop, None);
+                    }
+                    "Ctrl+Shift+N" => {
                         self.create_browser_window(event_loop, None);
                     }
                     "Ctrl+W" => {
@@ -1552,7 +1626,18 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                     Key::Character(ref s) if s.eq_ignore_ascii_case("t") && self.modifiers.control_key() => {
-                        self.handle_create_tab(window_id, None);
+                        if self.modifiers.shift_key() {
+                            let target_url = if let Some(win) = self.windows.get_mut(&window_id) {
+                                win.tab_manager.pop_last_closed()
+                            } else {
+                                None
+                            };
+                            if let Some(url) = target_url {
+                                self.handle_create_tab(window_id, Some(url));
+                            }
+                        } else {
+                            self.handle_create_tab(window_id, None);
+                        }
                     }
                     Key::Character(ref s) if s.eq_ignore_ascii_case("n") && self.modifiers.control_key() => {
                         self.create_browser_window(event_loop, None);
@@ -1712,7 +1797,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    // 2. Preflight runtime check
+    // 2. Portable mode / Data directory initialization
+    let exe_dir = std::env::current_exe()
+        .map(|p| p.parent().unwrap_or(&p).to_path_buf())
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let args: Vec<String> = std::env::args().collect();
+    let data_dir = evergreen_core::env::resolve_data_directory(&exe_dir, &args);
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    // Direct WebView2 runtime to store all cache, state, and profiles inside data_dir
+    let wv2_data_dir = data_dir.join("webview2_data");
+    let _ = std::fs::create_dir_all(&wv2_data_dir);
+    std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv2_data_dir);
+
+    if evergreen_core::env::is_portable_mode(&exe_dir, &args) {
+        println!("[PORTABLE MODE] Operating with zero system residue at: {:?}", data_dir);
+    }
+
+    // 3. Preflight runtime check
     let runtime_version = match detect_webview2_runtime() {
         Some(v) => v,
         None => {
@@ -1722,7 +1824,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("Detected Evergreen WebView2 Runtime: {}", runtime_version);
 
-    // 3. Launch event loop
+    // 4. Launch event loop
     let event_loop = EventLoop::<BrowserEvent>::with_user_event().build()?;
     let proxy = event_loop.create_proxy();
     let mut app = BrowserApp::new(proxy, runtime_version);

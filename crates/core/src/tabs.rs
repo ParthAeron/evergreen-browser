@@ -138,6 +138,10 @@ impl TabManager {
         &self.tabs
     }
 
+    pub fn tabs_mut(&mut self) -> &mut [TabState] {
+        &mut self.tabs
+    }
+
     pub fn update_title(&mut self, id: TabId, title: String) {
         if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
             tab.title = title;
@@ -244,6 +248,28 @@ impl TabManager {
         self.tabs.insert(idx, tab);
         self.active_tab_id = Some(id);
         id
+    }
+
+    pub fn mark_tab_crashed(&mut self, id: TabId) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.status = TabStatus::Crashed;
+        }
+    }
+
+    pub fn snapshot(&self) -> Vec<TabState> {
+        self.tabs.clone()
+    }
+
+    pub fn restore_from_snapshot(&mut self, tabs: Vec<TabState>) {
+        self.tabs = tabs;
+        if let Some(active) = self.tabs.iter().find(|t| t.status == TabStatus::Active) {
+            self.active_tab_id = Some(active.id);
+        } else if let Some(first) = self.tabs.first() {
+            self.active_tab_id = Some(first.id);
+        }
+        if let Some(max_id) = self.tabs.iter().map(|t| t.id.0).max() {
+            self.next_id = max_id + 1;
+        }
     }
 }
 

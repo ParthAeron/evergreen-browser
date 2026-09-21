@@ -124,7 +124,11 @@ pub fn attach_accelerator_keys(
                     if ctrl && !alt {
                         match vkey {
                             0x54 => { // 'T'
-                                shortcut = Some("Ctrl+T");
+                                if shift {
+                                    shortcut = Some("Ctrl+Shift+T");
+                                } else {
+                                    shortcut = Some("Ctrl+T");
+                                }
                                 handled = true;
                             }
                             0x57 => { // 'W'
@@ -164,7 +168,11 @@ pub fn attach_accelerator_keys(
                                 handled = true;
                             }
                             0x4E => { // 'N'
-                                shortcut = Some("Ctrl+N");
+                                if shift {
+                                    shortcut = Some("Ctrl+Shift+N");
+                                } else {
+                                    shortcut = Some("Ctrl+N");
+                                }
                                 handled = true;
                             }
                             0x09 => { // Tab
@@ -413,18 +421,49 @@ pub fn attach_navigation_events(
         let _ = unsafe { core.add_PermissionRequested(&perm_handler, &mut token_p) };
 
         // Process Failed Handler (detect GPU/renderer reset on sleep/standby)
+        let proxy_fail = proxy.clone();
         let process_failed_handler = webview2_com::ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
             if let Some(args) = args {
                 let mut kind = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PROCESS_FAILED_KIND(0);
                 let _ = unsafe { args.ProcessFailedKind(&mut kind) };
                 eprintln!("[PROCESS FAILED] WebView2 process failed kind: {:?}", kind.0);
+                let _ = proxy_fail.send_event(crate::BrowserEvent::TabCrashed(window_id, tab_id, kind.0));
             }
             Ok(())
         }));
         let mut token_pf = Default::default();
         let _ = unsafe { core.add_ProcessFailed(&process_failed_handler, &mut token_pf) };
 
-        // 6. Download Starting with Save As prompt and progress tracking
+        // 6. Strict TLS Warning Interstitial (ServerCertificateErrorDetected)
+        if let Ok(core14) = core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_14>() {
+            let proxy_cert = proxy.clone();
+            let cert_handler = webview2_com::ServerCertificateErrorDetectedEventHandler::create(Box::new(move |_sender, args| {
+                if let Some(args) = args {
+                    let mut error_status = webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_WEB_ERROR_STATUS(0);
+                    let _ = unsafe { args.ErrorStatus(&mut error_status) };
+                    let mut uri_pwstr = windows::core::PWSTR::null();
+                    let _ = unsafe { args.RequestUri(&mut uri_pwstr) };
+                    let uri_str = if !uri_pwstr.is_null() {
+                        unsafe { uri_pwstr.to_string() }.unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    // Cancel the untrusted request
+                    let _ = unsafe { args.SetAction(webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_SERVER_CERTIFICATE_ERROR_ACTION_CANCEL) };
+                    let _ = proxy_cert.send_event(crate::BrowserEvent::ServerCertificateError {
+                        window_id,
+                        tab_id,
+                        request_uri: uri_str,
+                        error_status: error_status.0,
+                    });
+                }
+                Ok(())
+            }));
+            let mut token_cert = Default::default();
+            let _ = unsafe { core14.add_ServerCertificateErrorDetected(&cert_handler, &mut token_cert) };
+        }
+
+        // 7. Download Starting with Save As prompt and progress tracking
         use windows::core::Interface;
         if let Ok(core4) = core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_4>() {
             let proxy_dl = proxy.clone();

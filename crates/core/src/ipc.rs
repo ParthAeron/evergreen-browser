@@ -21,6 +21,7 @@ pub enum UiToHostMessage {
     GoBack,
     GoForward,
     Reload,
+    ReloadTab { tab_id: TabId },
     Stop,
     /// Open DevTools for current tab
     OpenDevTools,
@@ -140,6 +141,10 @@ pub enum HostToUiMessage {
         can_go_back: bool,
         can_go_forward: bool,
         is_loading: bool,
+    },
+    /// Tab encountered a render crash
+    TabCrashed {
+        tab_id: TabId,
     },
     /// Status message or engine update output
     CommandOutput {
