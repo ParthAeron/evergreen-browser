@@ -1,7 +1,6 @@
 <div align="center">
-  <img src="docs/assets/logo.png" width="108" height="108" alt="Evergreen Browser Logo" />
-  <h1>Evergreen Browser</h1>
-  <p><strong>A 1.2 MB native Windows browser shell powered by the OS-maintained WebView2 Runtime.</strong></p>
+  <img src="docs/assets/logo_full.png" width="277" height="85" alt="Evergreen Browser" />
+  <p><strong>A 1.3 MB native Windows browser shell powered by the OS-maintained WebView2 Runtime.</strong></p>
 
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>

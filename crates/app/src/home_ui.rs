@@ -3,7 +3,7 @@
 //! Clean start page with search input and zero clutter (no quick link tiles).
 //! Uses official project logo with transparent background.
 
-pub const LOGO_BASE64: &str = include_str!("../ui/logo.b64");
+pub const LOGO_BASE64: &str = include_str!("../ui/logo_full.b64");
 
 pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
@@ -62,11 +62,11 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
     .brand-logo {
-      width: 88px;
-      height: 80px;
+      width: 277px;
+      height: 85px;
       object-fit: contain;
       background: transparent;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
       filter: drop-shadow(0 8px 24px rgba(52, 211, 153, 0.25));
     }
 
@@ -155,7 +155,6 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
   <div class="main-content">
     <div class="brand">
       <img src="data:image/png;base64,{{LOGO_BASE64}}" class="brand-logo" alt="Evergreen" />
-      <h1 class="brand-title">Evergreen</h1>
     </div>
 
     <!-- Search / Address input -->
