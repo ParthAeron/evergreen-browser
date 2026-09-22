@@ -3,6 +3,7 @@ members = [
     "crates/core",
     "crates/engine-webview2",
     "crates/app",
+    "crates/installer",
 ]
 resolver = "2"
 

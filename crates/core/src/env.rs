@@ -3,27 +3,31 @@ use std::path::{Path, PathBuf};
 /// Check whether the browser should run in zero-residue portable mode.
 /// Portable mode is active if:
 /// 1. The `--portable` CLI argument is passed, OR
-/// 2. A `portable.lock` file exists in the directory containing the executable, OR
-/// 3. A `user_data` directory already exists adjacent to the executable.
+/// 2. A `portable.lock` or `portable.ini` file exists adjacent to the executable, OR
+/// 3. A `user_data` or `data` directory already exists adjacent to the executable.
 pub fn is_portable_mode(exe_dir: &Path, args: &[String]) -> bool {
     if args.iter().any(|a| a == "--portable") {
         return true;
     }
-    if exe_dir.join("portable.lock").exists() {
+    if exe_dir.join("portable.lock").exists() || exe_dir.join("portable.ini").exists() {
         return true;
     }
-    if exe_dir.join("user_data").is_dir() {
+    if exe_dir.join("user_data").is_dir() || exe_dir.join("data").is_dir() {
         return true;
     }
     false
 }
 
 /// Resolves the storage root for settings, cache, and profile data.
-/// Returns `exe_dir.join("user_data")` in portable mode, or `%APPDATA%\evergreen-browser`
-/// in standard mode.
+/// Returns `exe_dir.join("data")` or `exe_dir.join("user_data")` in portable mode,
+/// or `%APPDATA%\evergreen-browser` in standard mode.
 pub fn resolve_data_directory(exe_dir: &Path, args: &[String]) -> PathBuf {
     if is_portable_mode(exe_dir, args) {
-        exe_dir.join("user_data")
+        if exe_dir.join("data").is_dir() {
+            exe_dir.join("data")
+        } else {
+            exe_dir.join("user_data")
+        }
     } else if let Ok(appdata) = std::env::var("APPDATA") {
         PathBuf::from(appdata).join("evergreen-browser")
     } else {

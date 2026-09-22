@@ -147,6 +147,22 @@ Detailed architectural diagrams and window composition models are documented in 
 
 ---
 
+## Installation & Quick Start
+
+### Option 1: Native Windows Installer (Recommended)
+Download and run **`EvergreenBrowserSetup.exe`** (1.61 MB):
+- **Zero-UAC Install**: Installs directly to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without requiring Administrator elevation.
+- **Shell Integration**: Automatically creates Start Menu and Desktop shortcuts with crystal-clear High-DPI icons.
+- **Windows Integration**: Registers cleanly under Windows Settings (`Apps` > `Installed apps`) with full uninstaller support.
+
+### Option 2: Standalone Portable Mode
+For zero-residue, isolated execution on USB drives or external storage:
+1. Download standalone `evergreen-browser.exe` (1.3 MB).
+2. Place a `portable.ini` or create a `data\` folder adjacent to the executable.
+3. Launch `evergreen-browser.exe` (or run with `--portable`). All settings and temporary cache stay strictly confined to `data\` with zero `%APPDATA%` or registry writes.
+
+---
+
 ## Building from Source
 
 ### Prerequisites
@@ -162,6 +178,9 @@ cargo run -p evergreen-browser
 
 # Build optimized release binary
 cargo build --release -p evergreen-browser
+
+# Build both release browser and standalone installer (dist/EvergreenBrowserSetup.exe)
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 
 # Run in portable mode
 target\release\evergreen-browser.exe --portable

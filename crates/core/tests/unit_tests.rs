@@ -410,10 +410,25 @@ fn test_portable_mode_detection_and_data_directory() {
     assert_eq!(dir_lock, temp_dir.join("user_data"));
     let _ = std::fs::remove_file(&lock_file);
 
+    // portable.ini file
+    let ini_file = temp_dir.join("portable.ini");
+    std::fs::write(&ini_file, "").unwrap();
+    assert!(is_portable_mode(&temp_dir, &[]));
+    let _ = std::fs::remove_file(&ini_file);
+
     // user_data directory
     let user_data_dir = temp_dir.join("user_data");
     std::fs::create_dir_all(&user_data_dir).unwrap();
     assert!(is_portable_mode(&temp_dir, &[]));
+    assert_eq!(resolve_data_directory(&temp_dir, &[]), temp_dir.join("user_data"));
+    let _ = std::fs::remove_dir_all(&user_data_dir);
+
+    // data directory
+    let data_dir = temp_dir.join("data");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    assert!(is_portable_mode(&temp_dir, &[]));
+    assert_eq!(resolve_data_directory(&temp_dir, &[]), temp_dir.join("data"));
+
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
