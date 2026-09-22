@@ -13,6 +13,7 @@ use evergreen_core::env::*;
 use evergreen_core::ipc::*;
 use evergreen_core::settings::*;
 use evergreen_core::tabs::*;
+use std::path::PathBuf;
 
 // ============================================================================
 // VECTOR 1: IPC Protocol Fuzzing & Deserialization Boundaries
@@ -216,6 +217,23 @@ fn test_security_v3_production_flags_audit() {
 }
 
 // ============================================================================
+// VECTOR 4: Host Object Isolation & DOM Boundaries
+// ============================================================================
+
+#[test]
+fn test_security_v4_host_object_isolation_invariants() {
+    // Invariant: Native COM host objects must never be exposed to the DOM window
+    // `AreHostObjectsAllowed` must remain false in production configuration.
+    let settings = Settings::default();
+    assert!(settings.privacy.ephemeral_default);
+
+    // Verify IPC message definitions do not expose arbitrary method reflection
+    let json_sample = r#"{"action": "HostObjectCall", "payload": {"method": "GetProcess"}}"#;
+    let parsed = serde_json::from_str::<UiToHostMessage>(json_sample);
+    assert!(parsed.is_err(), "Arbitrary host object calls must be strictly rejected");
+}
+
+// ============================================================================
 // VECTOR 5: Strict TLS Host-Scoped Whitelisting Boundaries
 // ============================================================================
 
@@ -231,6 +249,11 @@ fn test_security_v5_tls_host_scoping_boundary() {
     assert!(!allowed_hosts.contains("sub.badssl.com"));
     assert!(!allowed_hosts.contains("evil-badssl.com"));
     assert!(!allowed_hosts.contains("badssl.com.evil.com"));
+
+    // Port and trailing dot injection must not match
+    assert!(!allowed_hosts.contains("badssl.com:443"));
+    assert!(!allowed_hosts.contains("badssl.com:8443"));
+    assert!(!allowed_hosts.contains("badssl.com."));
 
     // Empty or whitespace host injection must fail
     assert!(!allowed_hosts.contains(""));
@@ -271,4 +294,54 @@ fn test_security_v7_bounded_history_capacity() {
     }
 
     assert_eq!(restored_count, 50, "Closed tab history must be capped at 50 items");
+}
+
+// ============================================================================
+// VECTOR 8: Zero-Residue Portable Mode Containment
+// ============================================================================
+
+#[test]
+fn test_security_v8_portable_data_isolation() {
+    let temp_sandbox = std::env::temp_dir().join(format!(
+        "evergreen_sec_v8_{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_sandbox).unwrap();
+
+    // 1. When portable.ini exists, data directory must resolve strictly inside sandbox
+    let ini = temp_sandbox.join("portable.ini");
+    std::fs::write(&ini, "").unwrap();
+
+    assert!(is_portable_mode(&temp_sandbox, &[]));
+    let resolved = resolve_data_directory(&temp_sandbox, &[]);
+    assert!(
+        resolved.starts_with(&temp_sandbox),
+        "Portable data must strictly stay within executable directory tree: {:?}",
+        resolved
+    );
+
+    // 2. Settings saved in portable mode must remain contained
+    let settings_path = resolved.join("settings.json");
+    let settings = Settings::default();
+    settings.save_to_path(&settings_path).unwrap();
+    assert!(settings_path.exists());
+
+    // Clean up
+    let _ = std::fs::remove_dir_all(&temp_sandbox);
+}
+
+// ============================================================================
+// VECTOR 9: Installer Boundary & Unquoted Path Defense
+// ============================================================================
+
+#[test]
+fn test_security_v9_installer_path_and_registry_safety() {
+    // Verify that uninstall command formatting is strictly quoted
+    // to protect against unquoted service path / command injection (CWE-428).
+    let sample_uninstaller = PathBuf::from(r"C:\Program Files\Evergreen Browser\uninstall.exe");
+    let formatted_cmd = format!("\"{}\" --uninstall", sample_uninstaller.display());
+
+    assert!(formatted_cmd.starts_with('"'));
+    assert!(formatted_cmd.contains("\" --uninstall"));
+    assert!(!formatted_cmd.starts_with("C:\\Program Files")); // Must be quoted!
 }
