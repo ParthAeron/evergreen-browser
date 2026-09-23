@@ -7,6 +7,8 @@ mod installer_ui;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -15,6 +17,8 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 use winit::window::{Icon, Window, WindowAttributes, WindowId};
 use wry::WebViewBuilder;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 const APP_NAME: &str = "Evergreen Browser";
 const APP_VERSION: &str = "0.4.0";
@@ -71,8 +75,12 @@ fn create_shortcut(target_exe: &Path, shortcut_path: &Path, icon_path: &Path) ->
         APP_NAME
     );
 
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", &ps_script]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd
         .output()
         .map_err(|e| format!("Failed to invoke PowerShell: {}", e))?;
 
@@ -109,9 +117,12 @@ fn register_uninstall_entry(install_dir: &Path, uninstall_exe: &Path) -> Result<
         UNINSTALL_KEY
     );
 
-    let _ = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .output();
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", &ps_script]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let _ = cmd.output();
 
     Ok(())
 }
@@ -121,9 +132,12 @@ fn unregister_uninstall_entry() {
         "Remove-Item -Path 'HKCU:\\{}' -Recurse -Force -ErrorAction SilentlyContinue",
         UNINSTALL_KEY
     );
-    let _ = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .output();
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", &ps_script]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let _ = cmd.output();
 }
 
 #[derive(Debug)]

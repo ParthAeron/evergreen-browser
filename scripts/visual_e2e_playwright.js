@@ -85,18 +85,42 @@ async function runVisualSuite() {
   });
   const page = await browserContext.newPage();
 
-  // 1. Chrome Top Strip: Zero Omnibox Placeholder Validation
-  console.log('\n[1/7] Verifying Chrome Top Strip (Zero Omnibox Placeholder)...');
-  await page.setContent(chromeHtml, { waitUntil: 'networkidle' });
+  // 1. Chrome Top Strip: Dynamic Omnibox Placeholder Validation
+  console.log('\n[1/7] Verifying Chrome Top Strip (Dynamic Omnibox Placeholder)...');
+  const chromeHtmlRendered = chromeHtml
+    .replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64)
+    .replace(/\{\{SEARCH_ENGINE_NAME\}\}/g, 'DuckDuckGo');
+
+  await page.setContent(chromeHtmlRendered, { waitUntil: 'networkidle' });
   const omnibox = await page.$('#omnibox');
   if (!omnibox) throw new Error('Missing #omnibox on Chrome strip');
-  const placeholderAttr = await page.getAttribute('#omnibox', 'placeholder');
-  if (placeholderAttr !== null && placeholderAttr !== '') {
-    throw new Error(`Expected #omnibox to have no placeholder, but found "${placeholderAttr}"`);
+  let placeholderAttr = await page.getAttribute('#omnibox', 'placeholder');
+  if (!placeholderAttr || !placeholderAttr.includes('Search DuckDuckGo or enter web address...')) {
+    throw new Error(`Expected #omnibox placeholder to match DuckDuckGo, but found "${placeholderAttr}"`);
   }
+  console.log(`  -> Initial placeholder confirmed: "${placeholderAttr}"`);
+
+  // Test live sync to Google
+  await page.evaluate(() => {
+    if (window.__syncSearchEngine) {
+      window.__syncSearchEngine('google');
+    }
+  });
+  placeholderAttr = await page.getAttribute('#omnibox', 'placeholder');
+  if (!placeholderAttr || !placeholderAttr.includes('Search Google or enter web address...')) {
+    throw new Error(`Expected #omnibox placeholder after __syncSearchEngine to match Google, but found "${placeholderAttr}"`);
+  }
+  console.log(`  -> Live sync to Google confirmed: "${placeholderAttr}"`);
+
+  // Switch back to DuckDuckGo for the clean canonical screenshot
+  await page.evaluate(() => {
+    if (window.__syncSearchEngine) {
+      window.__syncSearchEngine('duckduckgo');
+    }
+  });
   const chromeStripPath = path.join(DOCS_SCREENSHOTS, '07-browser-chrome-strip-clean.png');
   await page.screenshot({ path: chromeStripPath, clip: { x: 0, y: 0, width: 1280, height: 76 } });
-  console.log(`  -> Captured: ${chromeStripPath} (Placeholder verified empty)`);
+  console.log(`  -> Captured: ${chromeStripPath} (Dynamic placeholder verified: DuckDuckGo)`);
 
   // 2. Pristine Home Screen
   console.log('\n[2/7] Verifying Pristine Home Screen (evergreen://newtab)...');

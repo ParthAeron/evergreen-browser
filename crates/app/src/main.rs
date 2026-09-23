@@ -9,7 +9,7 @@ mod home_ui;
 mod sidebar_ui;
 mod cert;
 
-use chrome::{create_bounds, normalize_url, CHROME_HEIGHT, EMBEDDED_CHROME_HTML};
+use chrome::{create_bounds, get_chrome_html, normalize_url, CHROME_HEIGHT};
 use evergreen_core::env::{detect_webview2_runtime, is_process_elevated};
 use evergreen_core::ipc::{HostToUiMessage, UiToHostMessage};
 use evergreen_core::tabs::{TabId, TabManager, TabState};
@@ -630,9 +630,11 @@ impl BrowserApp {
         let chrome_bounds = create_bounds(0.0, 0.0, win_width, CHROME_HEIGHT);
         let proxy_ipc = self.proxy.clone();
 
+        let chrome_html = get_chrome_html(&self.settings.search_engine);
+
         match WebViewBuilder::new()
             .with_bounds(chrome_bounds)
-            .with_html(EMBEDDED_CHROME_HTML.as_str())
+            .with_html(&chrome_html)
             .with_transparent(true)
             .with_background_color((24, 24, 32, 255))
             .with_ipc_handler(move |req: wry::http::Request<String>| {
@@ -649,6 +651,11 @@ impl BrowserApp {
                     self.runtime_version
                 );
                 let _ = chrome_wv.evaluate_script(&version_script);
+                let engine_script = format!(
+                    "if (window.__syncSearchEngine) {{ window.__syncSearchEngine('{}'); }}",
+                    self.settings.search_engine
+                );
+                let _ = chrome_wv.evaluate_script(&engine_script);
                 win_ctx.chrome_webview = Some(chrome_wv);
             }
             Err(e) => eprintln!("Failed to create chrome webview: {:?}", e),
@@ -1841,7 +1848,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.iter().any(|a| a == "--uninstall") {
         let uninst_exe = exe_dir.join("uninstall.exe");
         if uninst_exe.exists() {
-            let _ = std::process::Command::new(&uninst_exe).arg("--uninstall").spawn();
+            let mut cmd = std::process::Command::new(&uninst_exe);
+            cmd.arg("--uninstall");
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000);
+            }
+            let _ = cmd.spawn();
         }
         return Ok(());
     }

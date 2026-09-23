@@ -696,6 +696,7 @@
         aria-autocomplete="list"
         aria-haspopup="listbox"
         aria-label="Address and search bar"
+        placeholder="Search {{SEARCH_ENGINE_NAME}} or enter web address..."
         onkeydown="handleOmniboxKey(event)"
       />
 
@@ -1252,6 +1253,21 @@
       const omnibox = document.getElementById('omnibox');
       omnibox.focus();
       omnibox.select();
+    };
+
+    window.__syncSearchEngine = function(engine) {
+      const names = {
+        'google': 'Google',
+        'bing': 'Bing',
+        'brave': 'Brave',
+        'ecosia': 'Ecosia',
+        'duckduckgo': 'DuckDuckGo'
+      };
+      const name = names[engine ? engine.toLowerCase() : ''] || 'DuckDuckGo';
+      const omnibox = document.getElementById('omnibox');
+      if (omnibox) {
+        omnibox.placeholder = `Search ${name} or enter web address...`;
+      }
     };
 
     document.addEventListener('click', (e) => {

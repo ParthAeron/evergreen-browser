@@ -18,11 +18,35 @@
 
 ---
 
+## Why Evergreen?
+
+Traditional modern browsers (Google Chrome, Microsoft Edge, Brave, Arc) bundle a complete, frozen copy of Chromium or Blink (~150 MB to 250 MB compressed, expanding to 500 MB+ on disk). Each instance runs monolithic background updater services, telemetry collectors, and heavy multi-process architectures that consume hundreds of megabytes of RAM before opening a single web page.
+
+**Evergreen Browser takes the opposite approach:**
+Instead of shipping a redundant, frozen engine, Evergreen leverages the **Microsoft Edge WebView2 Evergreen Runtime** already built into and continuously patched by Windows 10 and 11. The browser itself is a lean, lightning-fast Rust shell compiled directly to native Win32 machine code.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           ARCHITECTURAL PARADIGM COMPARISON                             │
+├─────────────────────────────────────────────┬───────────────────────────────────────────┤
+│    Monolithic Browsers (Chrome, Brave, Arc) │         Evergreen Browser Architecture    │
+├─────────────────────────────────────────────┼───────────────────────────────────────────┤
+│ • Bundled Frozen Engine (~150MB - 250MB)    │ • Zero Engine Shipping (Uses OS Runtime)  │
+│ • Custom C++ / Swift / Electron UI Shell    │ • Static Rust Shell Host (1.83 MB MSVC)   │
+│ • Monolithic Browser Process (100MB+ RAM)   │ • Decoupled Host Process (3.84 MB RAM)    │
+│ • 400MB - 800MB Permanent Disk Footprint    │ • < 2 MB Permanent Disk Footprint         │
+│ • Background Telemetry & Sync Daemons       │ • Zero Telemetry, 100% Ephemeral by Def.  │
+│ • Multi-Process Compositor Tab Switching    │ • Native Win32 HWND Z-Order (0.199 ms)   │
+└─────────────────────────────────────────────┴───────────────────────────────────────────┘
+```
+
+---
+
 ## Table of Contents
 
+- [Why Evergreen?](#why-evergreen)
 - [Performance Benchmarks](#performance-benchmarks)
 - [Key Features](#key-features)
-- [Architectural Paradigm](#architectural-paradigm)
 - [Project & Workspace Structure](#project--workspace-structure)
 - [Interface Gallery](#interface-gallery)
 - [Installation & Quickstart](#installation--quickstart)
@@ -63,25 +87,6 @@ Below is the empirical benchmark matrix measured on Windows 11 x64 comparing Eve
 - **🧳 True Zero-Residue Portable Mode**: Place `portable.ini` or a `data/` folder next to `evergreen-browser.exe`. The browser redirects all profile directories, cache partitions, and `settings.json` strictly into `./data/`, making zero writes to `%APPDATA%`, `%LOCALAPPDATA%`, or the Windows Registry.
 - **🔒 Strict Elevation Refusal & Accelerator Priority**: Inspects user process tokens on startup via `OpenProcessToken`. Running as Administrator displays a native security warning and terminates immediately to prevent sandbox bypass. Win32 controller hooks intercept critical shortcuts (`Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Ctrl+J`, `F12`) before webpage scripts can capture or disable them.
 - **🎨 Modern Fluent Dark Setup Wizard**: Packaged into a dedicated WebView2 setup window (`EvergreenBrowserSetup.exe`, 580x500 logical size) with acrylic card styling, Segoe UI Variable typography, circular emerald SVG checkmark badges, and MIT open-source licensing and non-liability safeguards.
-
----
-
-## Architectural Paradigm
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                           ARCHITECTURAL PARADIGM COMPARISON                             │
-├─────────────────────────────────────────────┬───────────────────────────────────────────┤
-│    Monolithic Browsers (Chrome, Brave, Arc) │         Evergreen Browser Architecture    │
-├─────────────────────────────────────────────┼───────────────────────────────────────────┤
-│ • Bundled Frozen Engine (~150MB - 250MB)    │ • Zero Engine Shipping (Uses OS Runtime)  │
-│ • Custom C++ / Swift / Electron UI Shell    │ • Static Rust Shell Host (1.83 MB MSVC)   │
-│ • Monolithic Browser Process (100MB+ RAM)   │ • Decoupled Host Process (3.84 MB RAM)    │
-│ • 400MB - 800MB Permanent Disk Footprint    │ • < 2 MB Permanent Disk Footprint         │
-│ • Background Telemetry & Sync Daemons       │ • Zero Telemetry, 100% Ephemeral by Def.  │
-│ • Multi-Process Compositor Tab Switching    │ • Native Win32 HWND Z-Order (0.199 ms)   │
-└─────────────────────────────────────────────┴───────────────────────────────────────────┘
-```
 
 ---
 

@@ -5,7 +5,11 @@
 use evergreen_core::ipc::SecurityInfo;
 use std::collections::HashMap;
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::sync::{Arc, Mutex};
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Clone, Default)]
 pub struct CertificateCache {
@@ -115,10 +119,12 @@ pub fn fetch_live_certificate(host: &str) -> Option<SecurityInfo> {
         host
     );
 
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
-        .output()
-        .ok()?;
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
@@ -167,8 +173,11 @@ pub fn open_native_certificate_dialog(host: &str) {
             host_owned
         );
 
-        let _ = Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
-            .spawn();
+        let mut cmd = Command::new("powershell");
+        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let _ = cmd.spawn();
     });
 }

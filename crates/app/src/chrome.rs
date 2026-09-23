@@ -6,11 +6,19 @@ use wry::Rect;
 pub const RAW_CHROME_HTML: &str = include_str!("../ui/index.html");
 pub const LOGO_BASE64: &str = include_str!("../ui/logo.b64");
 
-pub fn get_chrome_html() -> String {
-    RAW_CHROME_HTML.replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+pub fn get_chrome_html(search_engine: &str) -> String {
+    let display_name = match search_engine.to_lowercase().as_str() {
+        "google" => "Google",
+        "bing" => "Bing",
+        "brave" => "Brave",
+        "ecosia" => "Ecosia",
+        _ => "DuckDuckGo",
+    };
+    RAW_CHROME_HTML
+        .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
+        .replace("{{SEARCH_ENGINE_NAME}}", display_name)
 }
 
-pub static EMBEDDED_CHROME_HTML: std::sync::LazyLock<String> = std::sync::LazyLock::new(get_chrome_html);
 pub const CHROME_HEIGHT: f64 = 76.0;
 
 /// Create logical bounds for child webviews
@@ -59,5 +67,14 @@ mod tests {
         assert!(normalize_url("javascript:alert(1)", template).is_err());
         assert!(normalize_url("file:///C:/test.txt", template).is_err());
         assert!(normalize_url("data:text/html,<h1>hi</h1>", template).is_err());
+    }
+
+    #[test]
+    fn test_get_chrome_html_placeholder() {
+        let html_ddg = get_chrome_html("duckduckgo");
+        assert!(html_ddg.contains("Search DuckDuckGo or enter web address..."));
+
+        let html_google = get_chrome_html("google");
+        assert!(html_google.contains("Search Google or enter web address..."));
     }
 }
