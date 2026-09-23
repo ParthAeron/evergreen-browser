@@ -83,9 +83,9 @@ fn create_shortcut(target_exe: &Path, shortcut_path: &Path, icon_path: &Path) ->
     }
 }
 
-fn register_uninstall_entry(install_dir: &Path, target_exe: &Path) -> Result<(), String> {
-    let uninst_cmd = format!("\"{}\" --uninstall", target_exe.display());
-    let icon_loc = format!("\"{}\",0", target_exe.display());
+fn register_uninstall_entry(install_dir: &Path, uninstall_exe: &Path) -> Result<(), String> {
+    let uninst_cmd = format!("\"{}\" --uninstall", uninstall_exe.display());
+    let target_exe = install_dir.join(EXE_NAME);
     let display_icon = target_exe.display().to_string();
 
     let ps_script = format!(
@@ -113,7 +113,6 @@ fn register_uninstall_entry(install_dir: &Path, target_exe: &Path) -> Result<(),
         .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
         .output();
 
-    let _ = icon_loc;
     Ok(())
 }
 
@@ -301,6 +300,12 @@ fn run_installer_worker(desktop: bool, start_menu: bool, proxy: EventLoopProxy<I
         });
         return;
     }
+
+    // Deploy standalone uninstaller
+    let uninstall_exe = install_dir.join("uninstall.exe");
+    if let Ok(cur_exe) = std::env::current_exe() {
+        let _ = std::fs::copy(&cur_exe, &uninstall_exe);
+    }
     std::thread::sleep(std::time::Duration::from_millis(300));
 
     // 3. Shortcuts creation
@@ -325,7 +330,7 @@ fn run_installer_worker(desktop: bool, start_menu: bool, proxy: EventLoopProxy<I
         pct: 90,
         text: "Registering application and finishing setup...".to_string(),
     });
-    let _ = register_uninstall_entry(&install_dir, &target_exe);
+    let _ = register_uninstall_entry(&install_dir, &uninstall_exe);
     std::thread::sleep(std::time::Duration::from_millis(200));
 
     // 5. Complete
@@ -361,7 +366,26 @@ fn run_uninstaller_worker(remove_data: bool, proxy: EventLoopProxy<InstallerEven
     // 4. Remove installation binaries
     let target_exe = install_dir.join(EXE_NAME);
     let _ = std::fs::remove_file(target_exe);
-    let _ = std::fs::remove_dir_all(&install_dir);
+
+    // 5. Schedule deferred cleanup of install_dir to remove uninstall.exe after this process exits
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let cmd = format!(
+            "timeout /t 2 /nobreak >nul & if exist \"{}\" rmdir /s /q \"{}\"",
+            install_dir.display(),
+            install_dir.display()
+        );
+        let _ = Command::new("cmd")
+            .args(["/c", &cmd])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::fs::remove_dir_all(&install_dir);
+    }
 
     std::thread::sleep(std::time::Duration::from_millis(500));
     let _ = proxy.send_event(InstallerEvent::UninstallComplete);

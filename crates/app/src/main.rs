@@ -1836,6 +1836,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|p| p.parent().unwrap_or(&p).to_path_buf())
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
     let args: Vec<String> = std::env::args().collect();
+
+    // If invoked with --uninstall, delegate to uninstall.exe and exit immediately
+    if args.iter().any(|a| a == "--uninstall") {
+        let uninst_exe = exe_dir.join("uninstall.exe");
+        if uninst_exe.exists() {
+            let _ = std::process::Command::new(&uninst_exe).arg("--uninstall").spawn();
+        }
+        return Ok(());
+    }
+
     let data_dir = evergreen_core::env::resolve_data_directory(&exe_dir, &args);
     let _ = std::fs::create_dir_all(&data_dir);
 
