@@ -69,7 +69,17 @@ const tlsHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><tit
 // Read Installer UI template directly from production source
 const installerUiSrc = fs.readFileSync(path.join(REPO_ROOT, 'crates', 'installer', 'src', 'installer_ui.rs'), 'utf8');
 const installerRaw = extractTemplate(installerUiSrc, 'INSTALLER_TEMPLATE');
-const installerBaseHtml = installerRaw.replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64);
+const installerBaseHtml = installerRaw
+  .replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64)
+  .replace(/\{\{INSTALLER_TITLE\}\}/g, 'Welcome to Evergreen Browser Setup')
+  .replace(/\{\{STEP0_ACTIVE\}\}/g, 'active')
+  .replace(/\{\{STEP_UNINSTALL0_ACTIVE\}\}/g, '');
+
+const uninstallerBaseHtml = installerRaw
+  .replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64)
+  .replace(/\{\{INSTALLER_TITLE\}\}/g, 'Uninstall Evergreen Browser')
+  .replace(/\{\{STEP0_ACTIVE\}\}/g, '')
+  .replace(/\{\{STEP_UNINSTALL0_ACTIVE\}\}/g, 'active');
 
 async function runVisualSuite() {
   console.log('====================================================');
@@ -197,8 +207,18 @@ async function runVisualSuite() {
   console.log('\n[6/7] Verifying Multi-Step Uninstaller States...');
 
   // Uninstaller Step 0: Confirmation Dialog
-  await instPage.setContent(installerBaseHtml, { waitUntil: 'networkidle' });
-  await instPage.evaluate(() => initUninstallMode());
+  await instPage.setContent(uninstallerBaseHtml, { waitUntil: 'networkidle' });
+  const isUninstallActive = await instPage.$eval('#stepUninstall0', el => el.classList.contains('active'));
+  const isStep0Active = await instPage.$eval('#step0', el => el.classList.contains('active'));
+  if (!isUninstallActive || isStep0Active) {
+    throw new Error(`Uninstaller mode verification failed: stepUninstall0 active=${isUninstallActive}, step0 active=${isStep0Active}`);
+  }
+  const title = await instPage.$eval('#titleText', el => el.textContent);
+  if (title !== 'Uninstall Evergreen Browser') {
+    throw new Error(`Expected title "Uninstall Evergreen Browser", got "${title}"`);
+  }
+  console.log(`  -> Uninstaller Step 0 verified active on load with title: "${title}"`);
+
   await instPage.waitForTimeout(200);
   const uninst0Path = path.join(DOCS_SCREENSHOTS, '05-installer-uninstaller-confirm.png');
   await instPage.screenshot({ path: uninst0Path });

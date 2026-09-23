@@ -198,6 +198,7 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
 
         let proxy = self.proxy.clone();
         let is_installing = self.is_installing.clone();
+        let is_uninstall_mode = self.is_uninstall;
 
         let webview_builder = WebViewBuilder::new()
             .with_background_color((22, 22, 29, 255))
@@ -210,7 +211,7 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
                         "cancel" => {
                             let _ = proxy.send_event(InstallerEvent::Exit);
                         }
-                        "accept" if !is_installing.swap(true, Ordering::SeqCst) => {
+                        "accept" if !is_uninstall_mode && !is_installing.swap(true, Ordering::SeqCst) => {
                             let create_desktop = val["desktop"].as_bool().unwrap_or(true);
                             let create_start_menu = val["start_menu"].as_bool().unwrap_or(true);
                             let worker_proxy = proxy.clone();
@@ -229,7 +230,7 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
                             }
                             let _ = proxy.send_event(InstallerEvent::Exit);
                         }
-                        "start_uninstall" => {
+                        "start_uninstall" if is_uninstall_mode && !is_installing.swap(true, Ordering::SeqCst) => {
                             let remove_data = val["remove_data"].as_bool().unwrap_or(false);
                             let worker_proxy = proxy.clone();
                             std::thread::spawn(move || {
@@ -243,6 +244,9 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
 
         match webview_builder.build(&*window) {
             Ok(wv) => {
+                if self.is_uninstall {
+                    let _ = wv.evaluate_script("if (window.initUninstallMode) { window.initUninstallMode(); }");
+                }
                 self.webview = Some(wv);
                 self.window = Some(window);
             }
@@ -407,7 +411,11 @@ fn run_uninstaller_worker(remove_data: bool, proxy: EventLoopProxy<InstallerEven
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let is_uninstall = args.iter().any(|a| a == "--uninstall");
+    let cur_exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
+        .unwrap_or_default();
+    let is_uninstall = args.iter().any(|a| a == "--uninstall") || cur_exe_name.contains("uninstall");
 
     // Preflight WebView2 Runtime inspection
     if evergreen_core::env::detect_webview2_runtime().is_none() {

@@ -416,14 +416,14 @@ pub const INSTALLER_TEMPLATE: &str = r#"<!DOCTYPE html>
   <!-- Brand Header -->
   <div class="brand-header">
     <img src="data:image/png;base64,{{LOGO_BASE64}}" class="brand-logo" alt="Evergreen Browser" />
-    <h2 class="installer-title" id="titleText">Welcome to Evergreen Browser Setup</h2>
+    <h2 class="installer-title" id="titleText">{{INSTALLER_TITLE}}</h2>
   </div>
 
   <!-- Wizard Steps Container -->
   <div class="wizard-container">
 
     <!-- Step 0: Prerequisite Inspection -->
-    <div class="step-view active" id="step0">
+    <div class="step-view {{STEP0_ACTIVE}}" id="step0">
       <div class="card">
         <div class="card-title">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -542,7 +542,7 @@ pub const INSTALLER_TEMPLATE: &str = r#"<!DOCTYPE html>
     </div>
 
     <!-- Uninstaller Step 0: Confirm -->
-    <div class="step-view" id="stepUninstall0">
+    <div class="step-view {{STEP_UNINSTALL0_ACTIVE}}" id="stepUninstall0">
       <div class="card">
         <div class="card-title" style="color: #f87171;">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -670,11 +670,38 @@ pub const INSTALLER_TEMPLATE: &str = r#"<!DOCTYPE html>
 "#;
 
 pub fn get_installer_html(logo_base64: &str, is_uninstall: bool) -> String {
-    let mut html = INSTALLER_TEMPLATE.replace("{{LOGO_BASE64}}", logo_base64.trim());
-    if is_uninstall {
-        html = html.replace("id=\"step0\" class=\"step-view active\"", "id=\"step0\" class=\"step-view\"");
-        html = html.replace("id=\"stepUninstall0\" class=\"step-view\"", "id=\"stepUninstall0\" class=\"step-view active\"");
-        html = html.replace("Welcome to Evergreen Browser Setup", "Uninstall Evergreen Browser");
+    let (title, step0_active, uninst0_active) = if is_uninstall {
+        ("Uninstall Evergreen Browser", "", "active")
+    } else {
+        ("Welcome to Evergreen Browser Setup", "active", "")
+    };
+
+    INSTALLER_TEMPLATE
+        .replace("{{LOGO_BASE64}}", logo_base64.trim())
+        .replace("{{INSTALLER_TITLE}}", title)
+        .replace("{{STEP0_ACTIVE}}", step0_active)
+        .replace("{{STEP_UNINSTALL0_ACTIVE}}", uninst0_active)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_installer_html_install_mode() {
+        let html = get_installer_html("test_logo", false);
+        assert!(html.contains("Welcome to Evergreen Browser Setup"));
+        assert!(html.contains(r#"id="step0""#));
+        assert!(html.contains(r#"class="step-view active" id="step0""#));
+        assert!(html.contains(r#"class="step-view " id="stepUninstall0""#));
     }
-    html
+
+    #[test]
+    fn test_installer_html_uninstall_mode() {
+        let html = get_installer_html("test_logo", true);
+        assert!(html.contains("Uninstall Evergreen Browser"));
+        assert!(html.contains(r#"id="stepUninstall0""#));
+        assert!(html.contains(r#"class="step-view active" id="stepUninstall0""#));
+        assert!(html.contains(r#"class="step-view " id="step0""#));
+    }
 }
