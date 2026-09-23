@@ -62,12 +62,12 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
     .brand-logo {
-      width: 277px;
+      width: 255px;
       height: 85px;
+      max-width: 90vw;
       object-fit: contain;
       background: transparent;
       margin-bottom: 24px;
-      filter: drop-shadow(0 8px 24px rgba(52, 211, 153, 0.25));
     }
 
     .brand-title {

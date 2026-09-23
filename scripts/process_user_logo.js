@@ -178,3 +178,4 @@ const repoRoot = path.resolve(__dirname, '..');
 
   console.log('Successfully processed user logo and generated all transparent assets.');
 })();
+

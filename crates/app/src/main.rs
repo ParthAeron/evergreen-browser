@@ -716,9 +716,9 @@ impl BrowserApp {
         let search_name = self.settings.search_engine_display_name().to_string();
         let search_url = self.settings.search_url_template().to_string();
         let home_html_content = home_ui::get_home_html(&search_name, &search_url);
-        let settings_html_content = settings_ui::get_settings_html(&runtime_ver, &self.settings);
         let home_bytes = home_html_content.as_bytes().to_vec();
-        let settings_bytes = settings_html_content.as_bytes().to_vec();
+        let fallback_runtime_ver = runtime_ver.clone();
+        let settings_clone = self.settings.clone();
 
         // Custom protocol for internal links
         builder = builder.with_custom_protocol("evergreen".into(), move |_webview_id, request| {
@@ -730,9 +730,12 @@ impl BrowserApp {
                     .body(std::borrow::Cow::Owned(home_bytes.clone()))
                     .unwrap()
             } else if host == "settings" || path == "/settings" || path == "settings" {
+                let active_ver = evergreen_core::env::detect_webview2_runtime()
+                    .unwrap_or_else(|| fallback_runtime_ver.clone());
+                let dynamic_settings_html = settings_ui::get_settings_html(&active_ver, &settings_clone);
                 wry::http::Response::builder()
                     .header("Content-Type", "text/html; charset=utf-8")
-                    .body(std::borrow::Cow::Owned(settings_bytes.clone()))
+                    .body(std::borrow::Cow::Owned(dynamic_settings_html.into_bytes()))
                     .unwrap()
             } else {
                 wry::http::Response::builder()
@@ -745,7 +748,8 @@ impl BrowserApp {
         if is_newtab {
             builder = builder.with_html(home_html_content);
         } else if is_settings {
-            builder = builder.with_html(settings_html_content);
+            let active_ver = evergreen_core::env::detect_webview2_runtime().unwrap_or_else(|| runtime_ver.clone());
+            builder = builder.with_html(settings_ui::get_settings_html(&active_ver, &self.settings));
         } else {
             builder = builder.with_url(url);
         }

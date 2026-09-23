@@ -35,19 +35,36 @@ pub fn resolve_data_directory(exe_dir: &Path, args: &[String]) -> PathBuf {
     }
 }
 
+/// Helper to parse a dotted version string (e.g. "153.0.4234.48") into numerical components for semver sorting.
+pub fn parse_version_tuple(v: &str) -> Option<Vec<u64>> {
+    let parts: Vec<u64> = v.split('.').filter_map(|p| p.parse::<u64>().ok()).collect();
+    if parts.len() >= 2 {
+        Some(parts)
+    } else {
+        None
+    }
+}
+
 /// Inspect the host Windows system for WebView2 Runtime installation without requiring COM initialization.
+/// Evaluates system and per-user paths, sorting multiple installed directories to reliably return the latest active version.
 pub fn detect_webview2_runtime() -> Option<String> {
-    // 1. Standard install path check
-    let standard_path = Path::new(r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application");
-    if standard_path.exists() {
-        if let Ok(entries) = std::fs::read_dir(standard_path) {
-            for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        // Version folder starts with digits
-                        if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-                            return Some(name);
+    let mut candidates: Vec<String> = Vec::new();
+
+    let search_paths = [
+        PathBuf::from(r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application"),
+        PathBuf::from(r"C:\Program Files\Microsoft\EdgeWebView\Application"),
+    ];
+
+    for path in &search_paths {
+        if path.exists() {
+            if let Ok(entries) = std::fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            if parse_version_tuple(&name).is_some() {
+                                candidates.push(name);
+                            }
                         }
                     }
                 }
@@ -55,7 +72,31 @@ pub fn detect_webview2_runtime() -> Option<String> {
         }
     }
 
-    None
+    if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
+        let user_path = PathBuf::from(local_appdata).join(r"Microsoft\EdgeWebView\Application");
+        if user_path.exists() {
+            if let Ok(entries) = std::fs::read_dir(user_path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            if parse_version_tuple(&name).is_some() {
+                                candidates.push(name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| {
+        let pa = parse_version_tuple(a).unwrap_or_default();
+        let pb = parse_version_tuple(b).unwrap_or_default();
+        pa.cmp(&pb)
+    });
+
+    candidates.pop()
 }
 
 /// Verify process elevation status to enforce non-elevated running invariant.
@@ -99,5 +140,31 @@ pub fn is_process_elevated() -> bool {
 #[cfg(not(windows))]
 pub fn is_process_elevated() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_version_tuple_sorting() {
+        let v1 = "153.0.4234.32";
+        let v2 = "153.0.4234.48";
+        let v3 = "154.0.100.1";
+        let v_invalid = "SetupMetrics";
+
+        assert_eq!(parse_version_tuple(v_invalid), None);
+        assert!(parse_version_tuple(v1).is_some());
+
+        let mut list = vec![v1.to_string(), v3.to_string(), v2.to_string()];
+        list.sort_by(|a, b| {
+            let pa = parse_version_tuple(a).unwrap_or_default();
+            let pb = parse_version_tuple(b).unwrap_or_default();
+            pa.cmp(&pb)
+        });
+
+        assert_eq!(list, vec![v1.to_string(), v2.to_string(), v3.to_string()]);
+        assert_eq!(list.pop(), Some("154.0.100.1".to_string()));
+    }
 }
 

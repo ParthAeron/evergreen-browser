@@ -3,7 +3,8 @@
 Cargo.lock
 
 # Distribution & packaging
-dist/
+dist/*
+!dist/EvergreenBrowserSetup.exe
 *.zip
 
 # Portable runtime data & temporary profiles
@@ -18,6 +19,7 @@ portable.lock
 *.pdb
 *.obj
 *.exe
+!dist/EvergreenBrowserSetup.exe
 *.dll
 *.res
 *.lib

@@ -1,11 +1,15 @@
 <div align="center">
-  <img src="docs/assets/logo_full.png" width="277" height="85" alt="Evergreen Browser" />
+  <img src="docs/assets/logo_full.png" width="270" alt="Evergreen Browser" />
   <p><strong>A 1.3 MB native Windows browser shell powered by the OS-maintained WebView2 Runtime.</strong></p>
+
+  <p>
+    <a href="dist/EvergreenBrowserSetup.exe"><img src="https://img.shields.io/badge/Download_Setup-EvergreenBrowserSetup.exe-22c55e?style=for-the-badge&logo=windows" alt="Download Evergreen Browser Setup" /></a>
+  </p>
 
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>
     <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-22c55e.svg" alt="Windows Platform" />
-    <img src="https://img.shields.io/badge/binary%20size-1.23%20MB-blue.svg" alt="Binary Size" />
+    <img src="https://img.shields.io/badge/binary%20size-1.31%20MB-blue.svg" alt="Binary Size" />
     <img src="https://img.shields.io/badge/shell%20RAM-3.8%20MB-blue.svg" alt="Host RAM" />
     <img src="https://img.shields.io/badge/telemetry-zero-success.svg" alt="Zero Telemetry" />
   </p>

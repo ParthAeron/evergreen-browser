@@ -667,7 +667,10 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 
     window.__syncEngineInfo = function(version) {
       const el = document.getElementById('engineVersion');
-      if (el) el.textContent = version || 'v153.0.4234.32 (Active)';
+      if (el && version) {
+        const cleanVer = version.startsWith('v') ? version : 'v' + version;
+        el.textContent = cleanVer.includes('(Active)') ? cleanVer : cleanVer + ' (Active)';
+      }
     };
 
     if (window.__runtimeVersion) {
