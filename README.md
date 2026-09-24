@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo_full.png" width="280" alt="Evergreen Browser" />
-  <p><strong>The ultra-lightweight, high-performance Windows desktop browser shell powered by the OS-maintained WebView2 Runtime.</strong><br>
-  Direct Win32 HWND composition. Ephemeral zero-residue privacy. Modern Fluent dark setup wizard.</p>
+  <p><strong>Lightweight, high-performance Windows desktop browser shell powered by the OS-maintained WebView2 Runtime.</strong><br>
+  Direct Win32 HWND composition, ephemeral zero-residue browsing, and native Fluent dark setup wizard.</p>
 
   <p>
     <a href="dist/EvergreenBrowserSetup.exe"><img src="https://img.shields.io/badge/Download_Setup-EvergreenBrowserSetup.exe-22c55e?style=for-the-badge&logo=windows" alt="Download Evergreen Browser Setup" /></a>
@@ -18,12 +18,28 @@
 
 ---
 
-## Why Evergreen?
+## Table of Contents
 
-Traditional modern browsers (Google Chrome, Microsoft Edge, Brave, Arc) bundle a complete, frozen copy of Chromium or Blink (~150 MB to 250 MB compressed, expanding to 500 MB+ on disk). Each instance runs monolithic background updater services, telemetry collectors, and heavy multi-process architectures that consume hundreds of megabytes of RAM before opening a single web page.
+- [Why Evergreen](#why-evergreen)
+- [Architecture Brief](#architecture-brief)
+- [Key Features](#key-features)
+- [Performance Benchmarks](#performance-benchmarks)
+- [Base Interface & Customization](#base-interface--customization)
+- [Installation & Quickstart](#installation--quickstart)
+- [Documentation](#documentation)
+- [License](#license)
 
-**Evergreen Browser takes the opposite approach:**
-Instead of shipping a redundant, frozen engine, Evergreen leverages the **Microsoft Edge WebView2 Evergreen Runtime** already built into and continuously patched by Windows 10 and 11. The browser itself is a lean, lightning-fast Rust shell compiled directly to native Win32 machine code.
+---
+
+## Why Evergreen
+
+Monolithic desktop browsers (Google Chrome, Microsoft Edge, Brave, Arc) bundle a complete, standalone copy of Chromium (~150 MB to 250 MB compressed, expanding to 500 MB+ on disk). Each browser runs dedicated background updaters, telemetry collectors, and helper processes that allocate hundreds of megabytes of RAM before navigating to a web page.
+
+Evergreen Browser uses the **Microsoft Edge WebView2 Evergreen Runtime** already built into and continuously patched by Windows 10 and 11, rather than shipping a separate browser engine. The application itself is a compact Rust shell compiled directly to native Win32 machine code, leaving engine patching and security maintenance to the underlying operating system.
+
+---
+
+## Architecture Brief
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
@@ -40,186 +56,156 @@ Instead of shipping a redundant, frozen engine, Evergreen leverages the **Micros
 └─────────────────────────────────────────────┴───────────────────────────────────────────┘
 ```
 
----
+The application is structured into decoupled layers:
+- **`evergreen-core`**: In-memory tab state management, settings serialization, plugin registry, and typed IPC protocols.
+- **`evergreen-engine-webview2`**: Windows COM bindings, hardware composition, and memory suspension interfaces.
+- **`evergreen-browser`**: Native application entry point, `winit` event loop, Win32 window management, and chrome UI.
+- **`evergreen-installer`**: Fluent dark setup wizard and uninstaller.
 
-## Table of Contents
+### Window Hierarchy
 
-- [Why Evergreen?](#why-evergreen)
-- [Performance Benchmarks](#performance-benchmarks)
-- [Key Features](#key-features)
-- [Project & Workspace Structure](#project--workspace-structure)
-- [Interface Gallery](#interface-gallery)
-- [Installation & Quickstart](#installation--quickstart)
-- [Building from Source](#building-from-source)
-- [Comprehensive Cross-Browser Comparison](#comprehensive-cross-browser-comparison)
-- [Documentation & Deep Dives](#documentation--deep-dives)
-- [Architectural Non-Goals](#architectural-non-goals)
-- [License](#license)
+Each tab is hosted as an independent Win32 child `HWND` inside a shared top-level frame:
 
----
+```mermaid
+graph TD
+    TopWin["Top-Level Native Window Frame (winit HWND, e.g. 1280x800)"]
+    
+    TopWin --> ChromeHWND["Chrome Navigation Strip Child HWND<br>Bounds: (0, 0, WindowWidth, 76px)<br>Fixed at top · Never suspended"]
+    TopWin --> ActiveTabHWND["Active Tab Content HWND<br>Bounds: (0, 76, ContentWidth, WindowHeight - 76)<br>Visible · Active DirectComposition GPU pipeline"]
+    TopWin --> InactiveTab1["Inactive Tab 1 HWND<br>ShowWindow(SW_HIDE)<br>Low Memory Target"]
+    TopWin --> InactiveTabN["Inactive Tab N HWND<br>ShowWindow(SW_HIDE)<br>TrySuspendAsync() after 5m"]
+    TopWin -.->|When Toggled| SidebarHWND["Sidebar Drawer HWND<br>Bounds: (WindowWidth - 320, 76, 320, WindowHeight - 76)"]
 
-## Performance Benchmarks
+    style TopWin fill:#1e3a5f,stroke:#4e8cff,stroke-width:2px,color:#fff
+    style ChromeHWND fill:#1b3830,stroke:#34d399,stroke-width:2px,color:#fff
+    style ActiveTabHWND fill:#22222e,stroke:#4e8cff,color:#fff
+    style InactiveTab1 fill:#16161d,stroke:#555,color:#aaa
+    style InactiveTabN fill:#16161d,stroke:#555,color:#aaa
+    style SidebarHWND fill:#2b2b3b,stroke:#8b949e,color:#fff
+```
 
-Below is the empirical benchmark matrix measured on Windows 11 x64 comparing Evergreen Browser against mainstream monolithic desktop browsers:
-
-| Metric / Dimension | Evergreen Browser | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Setup Installer Size** | **3.12 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB |
-| **Installed Binary Footprint** | **1.83 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB |
-| **Host Shell Private RAM** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB |
-| **Tab Switching Latency** | **0.199 ms** | ~18 – 35 ms | ~15 – 30 ms | ~18 – 35 ms | ~20 – 40 ms |
-| **Cold Start to Interactive (TTFP)** | **694 ms** | ~950 ms | ~880 ms | ~1020 ms | ~1150 ms |
-| **Suspended Tab Footprint** | **~2 – 5 MB** | ~15 – 25 MB | ~8 – 15 MB | ~18 – 30 MB | ~20 – 35 MB |
-| **Background Telemetry Daemons** | **0** (None) | Google Update, Pings | Edge Update, Bing | Brave Ledger, Pings | Mozilla Pings |
-| **Default Session Ephemerality** | **RAM-only (0 residue)** | Disk Database | Disk Database | Disk Database | Disk Database |
-
-*Detailed per-process memory breakdowns and reproduction steps are documented in [docs/benchmarks.md](docs/benchmarks.md).*
+Tab switching manipulates Win32 visibility flags directly (`ShowWindow(SW_SHOW)` / `ShowWindow(SW_HIDE)`), bypassing cross-process compositor recreation and keeping tab switching latency under 0.2 milliseconds.
 
 ---
 
 ## Key Features
 
-- **🚀 Direct OS Runtime Engine**: Taps into the pre-installed, Microsoft-maintained Edge WebView2 Evergreen Runtime. Delivers full modern Chromium web standards compliance (DirectX/D3D11, WebGL, WebGPU, and 4K media codecs) without bundling a 150 MB frozen browser engine or requiring routine upstream security compilations.
-- **🛡️ Ephemeral by Default (Zero Residue)**: All cookies, local storage partitions, browsing history, and temporary network caches are kept strictly in volatile memory. Closing the window instantly purges all session traces with zero disk residue. Whitelists for persistent logins can be configured in Settings.
-- **⚡ Sub-Millisecond HWND Z-Order Tab Switching (0.199 ms)**: Each active and inactive tab is managed as an independent hardware-composited Win32 child `HWND`. Tab transitions manipulate native OS window visibility flags directly, bypassing multi-process DOM compositor serialization.
-- **💤 Automatic Resource Suspension (`TrySuspendAsync`)**: Inactive background tabs automatically suspend after 5 minutes of idle time, freeing graphics rasterization buffers and halting JavaScript timer execution while retaining DOM state. Tabs playing audio are automatically exempt.
-- **🧩 Modular Plugin Architecture**: Extensible through the Rust `BrowserPlugin` trait. Inject custom action buttons into the top navigation chrome, register dedicated sidebar drawers, or inject content scripts without modifying core tab lifecycle logic. Restyle the chrome at runtime by dropping a `mods/theme.css` file adjacent to the executable.
-- **🧳 True Zero-Residue Portable Mode**: Place `portable.ini` or a `data/` folder next to `evergreen-browser.exe`. The browser redirects all profile directories, cache partitions, and `settings.json` strictly into `./data/`, making zero writes to `%APPDATA%`, `%LOCALAPPDATA%`, or the Windows Registry.
-- **🔒 Strict Elevation Refusal & Accelerator Priority**: Inspects user process tokens on startup via `OpenProcessToken`. Running as Administrator displays a native security warning and terminates immediately to prevent sandbox bypass. Win32 controller hooks intercept critical shortcuts (`Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Ctrl+J`, `F12`) before webpage scripts can capture or disable them.
-- **🎨 Modern Fluent Dark Setup Wizard**: Packaged into a dedicated WebView2 setup window (`EvergreenBrowserSetup.exe`, 580x500 logical size) with acrylic card styling, Segoe UI Variable typography, circular emerald SVG checkmark badges, and MIT open-source licensing and non-liability safeguards.
+- **Direct OS Runtime Engine**: Uses the Microsoft Edge WebView2 Evergreen Runtime pre-installed on Windows 10 and 11. Provides modern Chromium web standards compliance (DirectX/D3D11, WebGL, WebGPU, and 4K media codecs) without bundling engine binaries or requiring local security rebuilds.
+- **Ephemeral Session by Default**: Cookies, local storage, browsing history, and temporary network caches are kept strictly in volatile memory. Closing the window clears session traces without disk residue. Origins requiring persistent logins can be whitelisted in Settings.
+- **Native Win32 HWND Z-Order Tab Switching (0.199 ms)**: Each active and inactive tab is managed as an independent Win32 child `HWND`. Tab transitions manipulate native OS window visibility flags directly, avoiding compositor serialization overhead.
+- **Automatic Tab Suspension (`TrySuspendAsync`)**: Inactive background tabs automatically suspend after 5 minutes of idle time, freeing rasterization buffers and pausing JavaScript timers while retaining DOM state. Tabs actively playing audio remain awake.
+- **Modular Plugin Architecture**: Extensible through the Rust `BrowserPlugin` trait in `crates/core/src/plugins.rs`. Developers can inject toolbar buttons, register custom sidebar drawers, inject content scripts, and handle typed IPC messages without altering core tab lifecycle logic.
+- **Zero-Residue Portable Mode**: Placing `portable.ini` or a `data/` folder next to `evergreen-browser.exe` redirects all profile directories, cache partitions, and `settings.json` strictly into `./data/`, making zero writes to `%APPDATA%`, `%LOCALAPPDATA%`, or the Windows Registry.
+- **Process Integrity and Keystroke Priority**: Checks user process tokens on startup via `OpenProcessToken`. Running as Administrator displays a native security warning and terminates immediately to prevent sandbox bypass. Win32 controller hooks intercept critical shortcuts (`Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Ctrl+J`, `F12`) before webpage scripts can capture or suppress them.
+- **Fluent Dark Setup Wizard & Uninstaller**: Packaged into a self-contained WebView2 setup executable (`EvergreenBrowserSetup.exe`, 3.14 MB) featuring acrylic styling, Segoe UI Variable typography, licensing acceptance gating, desktop and Start menu shortcut generation, and a matching uninstallation wizard.
 
 ---
 
-## Project & Workspace Structure
+## Performance Benchmarks
 
-Evergreen Browser is structured as 4 decoupled crates:
+The benchmark matrix below was measured on Windows 11 x64 (MSVC release build, hardware acceleration active, clean profiles with zero extensions):
 
-```text
-evergreen-browser/
-├── Cargo.toml                       # Workspace manifest
-├── README.md                        # Project documentation & benchmarks
-├── crates/
-│   ├── core/                        # evergreen-core: TabManager, Settings, Plugins, IPC
-│   ├── engine-webview2/             # evergreen-engine-webview2: COM bindings & HWND hosting
-│   ├── app/                         # evergreen-browser: winit event loop, chrome UI & shell
-│   │   ├── src/                     # Window orchestration, shortcuts, IPC routing
-│   │   └── ui/                      # Chrome strip, newtab home UI, settings UI, icons
-│   └── installer/                   # evergreen-installer: Fluent dark setup & uninstaller
-│       ├── src/                     # Multi-step installation state machine & IPC worker
-│       └── assets/                  # Staged browser payload & application icons
-├── dist/                            # Ready-to-download standalone setup executable
-│   └── EvergreenBrowserSetup.exe    # Standalone 4-step setup installer (3.12 MB)
-├── docs/                            # Deep technical architecture, benchmarks, and guides
-│   ├── architecture.md              # Multi-child HWND layout & COM composition model
-│   ├── benchmarks.md                # Empirical performance matrices & methodology
-│   ├── plugins.md                   # Rust BrowserPlugin trait & custom extension guide
-│   └── walkthrough.md               # User theming (theme.css) & portable packaging
-└── scripts/                         # Build automation & Playwright visual E2E testing
-    ├── build-installer.ps1          # Standalone release compiler & packager
-    └── visual_e2e_playwright.js     # Headless Chromium visual regression verification
-```
+| Metric / Dimension | Evergreen Browser | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) | Arc Browser (Windows) | Min Browser (Electron) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Setup Package Size** | **3.14 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB | ~180 MB | ~85 MB |
+| **Installed Disk Footprint** | **1.83 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
+| **Engine Delivery Model** | **OS-Shared Runtime** | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Gecko/SM | Bundled Blink/V8 | Bundled Chromium |
+| **UI Shell Framework** | **Rust (`winit` + Win32)** | C++ (Aura) | C++ (WinUI) | C++ (Aura) | C++ / XUL | Swift / WinUI 3 | JS / Electron |
+| **Host Shell Private RAM** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB | ~210 MB | ~95 MB |
+| **Single Active Tab RAM (Working Set)** | **~405.9 MB** (Combined) | ~480 MB | ~460 MB | ~450 MB | ~430 MB | ~580 MB | ~510 MB |
+| **Single Active Tab Private Bytes** | **~228.5 MB** (All Procs) | ~295 MB | ~280 MB | ~275 MB | ~260 MB | ~360 MB | ~320 MB |
+| **5 Concurrent Tabs RAM (Working Set)** | **~690 MB** | ~890 MB | ~820 MB | ~840 MB | ~780 MB | ~1,120 MB | ~980 MB |
+| **Suspended Tab Footprint** | **~2 – 5 MB** (TrySuspendAsync) | ~15 – 25 MB (Memory Saver) | ~8 – 15 MB (Sleeping Tabs) | ~18 – 30 MB (Memory Saver) | ~20 – 35 MB (Tab Unload) | ~25 – 40 MB (Auto-Archive) | None |
+| **Tab Switching Latency** | **0.199 ms** | ~18 – 35 ms | ~15 – 30 ms | ~18 – 35 ms | ~20 – 40 ms | ~30 – 60 ms | ~40 – 85 ms |
+| **Cold Start to First Paint (TTFP)** | **694 ms** | ~950 ms | ~880 ms | ~1,020 ms | ~1,150 ms | ~1,650 ms | ~1,400 ms |
+| **Idle Shell CPU Usage** | **0.0%** | 0.2 – 0.8% | 0.3 – 0.9% | 0.2 – 0.6% | 0.2 – 0.5% | 0.4 – 1.2% | 0.3 – 0.7% |
+| **Background Telemetry Workers** | **0** (None) | Google Update, Metrics | Edge Update, Bing, Rewards | Brave Ledger, Rewards | Mozilla Telemetry Ping | Arc Sync, Telemetry | None |
+| **Default Session Ephemerality** | **RAM-only (0 residue)** | Disk Database | Disk Database | Disk Database | Disk Database | Disk Database | Disk Database |
+
+*Detailed per-process memory breakdowns and reproduction steps are documented in [docs/benchmarks.md](docs/benchmarks.md).*
 
 ---
 
-## Interface Gallery
+## Base Interface & Customization
 
-### Pristine Start Page
-Clean start page with High-DPI transparent branding, search bar, and session privacy badges:
+The base interface provides a streamlined foundation with tab management, an omnibox search strip, session privacy indicators, and settings.
+
+### Default Start Page
+Clean start page with high-DPI transparent branding, search bar, and session privacy badges:
 ![Evergreen Browser Start Page](docs/assets/screenshot_home.png)
 
-### Settings & Feature Modules
-Full-width settings interface with live dynamic WebView2 runtime version detection:
+### Settings & Configuration
+Full-width settings interface with live WebView2 runtime version detection and privacy toggles:
 ![Evergreen Browser Settings](docs/assets/screenshot_settings.png)
+
+### Customizing the Interface in Code
+
+Evergreen Browser is designed to be directly customized and extended:
+
+1. **Source Interface Modification**: The browser chrome strip, tabs, omnibox, and settings modal are standard web technologies located in `crates/app/ui/` (`index.html`, `newtab.html`, `settings.html`). You can adjust layouts, alter typography, and modify interface behaviors directly in HTML, CSS, and JavaScript.
+2. **Runtime Themes (`mods/theme.css`)**: You can restyle the browser chrome without recompiling. Create a `mods/` directory adjacent to `evergreen-browser.exe` and add a `theme.css` file. The browser automatically discovers and loads custom CSS rules at launch.
+3. **Rust Plugin System**: Implement the `BrowserPlugin` trait in `crates/core/src/plugins.rs` to register custom navigation toolbar buttons, sidebar drawers, content scripts, or custom typed IPC message handlers.
+
+For complete development examples, refer to the [Plugin Guide](docs/plugins.md) and [Developer Walkthrough](docs/walkthrough.md).
 
 ---
 
 ## Installation & Quickstart
 
 ### Method 1: Pre-Built Setup Installer (Recommended)
-Download and run **[`EvergreenBrowserSetup.exe`](dist/EvergreenBrowserSetup.exe)** (3.12 MB):
-- **Zero-UAC Install**: Deploys cleanly to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without prompting for Administrator elevation.
-- **Multi-Step Guided Flow**: Inspects prerequisites, presents open-source terms and non-liability disclaimers, configures shortcuts, and extracts payload binaries with animated progress.
-- **Clean Windows Uninstaller**: Automatically deploys `uninstall.exe` and registers under Windows Settings (`Apps` > `Installed apps`) with full browsing data cleanup support.
+Download and run **[`EvergreenBrowserSetup.exe`](dist/EvergreenBrowserSetup.exe)** (3.14 MB):
+- **Standard User Installation**: Deploys cleanly to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without requiring Administrator privileges.
+- **Guided Setup**: Verifies prerequisites, presents licensing terms, configures desktop and Start menu shortcuts, and extracts binaries with animated progress.
+- **Clean Windows Uninstallation**: Registers under Windows Settings (`Apps` > `Installed apps`) with automated uninstaller support and optional browsing data removal.
 
 ### Method 2: Zero-Residue Portable Mode
-For isolated execution on USB drives or external volumes:
+For running from external volumes or flash drives:
 1. Download standalone `evergreen-browser.exe` (1.83 MB).
-2. Place an empty `portable.ini` or create a `data\` folder adjacent to the executable.
-3. Launch `evergreen-browser.exe` (or run with `--portable`). All cache and configuration remain strictly confined to `data\`.
+2. Place an empty `portable.ini` file or create a `data/` folder adjacent to `evergreen-browser.exe`.
+3. Launch `evergreen-browser.exe`. All profile data, cache, and settings remain isolated inside `./data/`.
 
-### Method 3: Standalone Uninstallation
-To remove Evergreen Browser from your computer:
+### Method 3: Uninstallation
+To remove Evergreen Browser from your system:
 - Open Windows **Settings** > **Apps** > **Installed apps**, locate **Evergreen Browser**, and click **Uninstall**.
-- Alternatively, run:
+- Or run the uninstaller directly:
   ```powershell
   & "$env:LOCALAPPDATA\Programs\EvergreenBrowser\uninstall.exe" --uninstall
   ```
 
----
+### Method 4: Building from Source
 
-## Building from Source
-
-### Prerequisites
-- Windows 10 or 11 (64-bit architecture).
+#### Prerequisites
+- Windows 10 or 11 (64-bit).
 - Rust stable MSVC toolchain (`x86_64-pc-windows-msvc`).
 - Microsoft Edge WebView2 Evergreen Runtime (pre-installed on Windows 10/11).
 - Visual Studio C++ Build Tools (providing MSVC `link.exe` and `rc.exe`).
 
-### Build & Test Commands
+#### Build Commands
 ```powershell
 # Run debug browser shell
 cargo run -p evergreen-browser
 
-# Run comprehensive test suite (39 unit, security, and integration tests)
+# Run workspace unit, security, and integration tests
 cargo test --workspace
 
 # Run static analysis
 cargo clippy --workspace -- -D warnings
 
-# Build optimized release binaries & standalone setup installer
+# Build release binaries and standalone setup installer
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 
-# Run Playwright visual E2E verification
+# Run Playwright visual regression suite
 node scripts\visual_e2e_playwright.js
 ```
 
 ---
 
-## Comprehensive Cross-Browser Comparison
+## Documentation
 
-Measurements taken on Windows 11 x64 with clean profiles, no extensions, and hardware acceleration active:
-
-| Dimension | Evergreen Browser | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) | Arc Browser (Windows) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Setup Package Size** | **3.12 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB | ~180 MB |
-| **Installed Disk Footprint** | **1.83 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB |
-| **Engine Delivery Model** | **OS-Shared Runtime** | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Gecko/SM | Bundled Blink/V8 |
-| **UI Shell Framework** | **Rust (`winit` + Win32)** | C++ (Aura) | C++ (WinUI) | C++ (Aura) | C++ / XUL | Swift / WinUI 3 |
-| **Host Shell Private RAM** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB | ~210 MB |
-| **Single Active Tab RAM** | **~405.9 MB** | ~480 MB | ~460 MB | ~450 MB | ~430 MB | ~580 MB |
-| **Tab Switching Latency** | **0.199 ms** | ~18 – 35 ms | ~15 – 30 ms | ~18 – 35 ms | ~20 – 40 ms | ~30 – 60 ms |
-| **Cold Start to Interactive** | **694 ms** | ~950 ms | ~880 ms | ~1020 ms | ~1150 ms | ~1650 ms |
-| **Background Daemons** | **0** (None) | Google Update | Edge Update | Brave Ledger | Mozilla Pings | Arc Sync |
-| **Default Session Privacy** | **RAM-only (0 Disk)** | Persistent DB | Persistent DB | Persistent DB | Persistent DB | Persistent DB |
-
----
-
-## Documentation & Deep Dives
-
-- **[Architecture Specification](docs/architecture.md)**: Process hierarchy, multi-child HWND layout, typed IPC pipeline, and tab suspension mechanics.
-- **[Performance Benchmarks](docs/benchmarks.md)**: Hardware specifications, empirical measurement methodology, per-process breakdowns, and reproduction commands.
-- **[Plugin Development](docs/plugins.md)**: The `BrowserPlugin` trait, toolbar button injections, sidebar drawers, and content scripts.
-- **[Developer Walkthrough](docs/walkthrough.md)**: Guide for user theming (`mods/theme.css`), custom extensions, and portable zip packaging.
-
----
-
-## Architectural Non-Goals
-
-To preserve high speed, minimal resource usage, and architectural simplicity, Evergreen Browser explicitly rejects:
-- No telemetry, user tracking, or background analytics reporting.
-- No mandatory user accounts, cloud profile syncing, or remote storage.
-- No integrated advertising networks, sponsored newtab tiles, or cryptocurrency rewards.
-- No bundled browser extension store background processes.
+- **[Architecture Specification](docs/architecture.md)**: Process hierarchy, multi-child HWND composition, and tab sleep lifecycle.
+- **[Performance Benchmarks](docs/benchmarks.md)**: Empirical measurements, per-process memory breakdowns, and verification steps.
+- **[Plugin Development](docs/plugins.md)**: `BrowserPlugin` trait specification, custom toolbar buttons, sidepanels, and content scripts.
+- **[Developer Walkthrough](docs/walkthrough.md)**: Interface theming (`mods/theme.css`), custom plugins, and portable packaging.
 
 ---
 

@@ -28,7 +28,7 @@ This starts the browser directly with debug symbols enabled.
 ```powershell
 cargo build --release -p evergreen-browser
 ```
-The compiled executable is written to `target/release/evergreen-browser.exe`. The release binary is stripped and optimized, typically producing an executable around 1.2 MB.
+The compiled executable is written to `target/release/evergreen-browser.exe`. The release binary is stripped and optimized, producing an executable around 1.83 MB.
 
 ---
 
@@ -157,7 +157,7 @@ copy target\release\evergreen-browser.exe dist\EvergreenPortable\
 New-Item -ItemType File dist\EvergreenPortable\portable.ini
 Compress-Archive -Path dist\EvergreenPortable\* -DestinationPath dist\EvergreenBrowser-x64-portable.zip
 ```
-The resulting ZIP file is approximately 600 KB to 1.3 MB and ready for immediate use on any modern 64-bit Windows PC.
+The resulting ZIP file is approximately 1.8 MB and ready for immediate use on modern 64-bit Windows systems.
 
 ---
 
@@ -171,12 +171,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 ```
 
 ### What this produces:
-- **`dist/EvergreenBrowserSetup.exe` (~1.6 MB)**: Standalone installer that embeds the release browser binary and high-DPI icon resources.
+- **`dist/EvergreenBrowserSetup.exe` (~3.14 MB)**: Standalone installer that embeds the release browser binary and high-DPI icon resources.
   - Installs to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without requiring UAC elevation.
   - Generates crisp Start Menu and Desktop shortcuts.
   - Registers in Windows Settings (`Apps` > `Installed apps`) with full uninstaller support (`--uninstall`).
   - Launches the browser immediately upon completion.
-- **`dist/evergreen-browser.exe` (~1.3 MB)**: Standalone binary for portable usage.
+- **`dist/evergreen-browser.exe` (~1.83 MB)**: Standalone binary for portable usage.
 
 ### Regenerating High-DPI Icon Assets
 If you modify `crates/app/ui/logo.png`, regenerate the 7-layer multi-resolution icon suite (16x16 to 256x256) and RGBA buffers via:

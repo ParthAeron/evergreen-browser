@@ -362,6 +362,15 @@ fn run_installer_worker(desktop: bool, start_menu: bool, proxy: EventLoopProxy<I
 fn run_uninstaller_worker(remove_data: bool, proxy: EventLoopProxy<InstallerEvent>) {
     let install_dir = get_install_directory();
 
+    // 0. Terminate any running browser processes before file removal
+    #[cfg(target_os = "windows")]
+    {
+        let mut kill_cmd = Command::new("taskkill");
+        kill_cmd.args(["/F", "/IM", EXE_NAME]);
+        kill_cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = kill_cmd.output();
+    }
+
     // 1. Remove shortcuts
     if let Some(desktop_lnk) = get_desktop_shortcut_path() {
         let _ = std::fs::remove_file(desktop_lnk);
