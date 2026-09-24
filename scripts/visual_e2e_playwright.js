@@ -9,16 +9,29 @@
 const fs = require('fs');
 const path = require('path');
 
-// Locate Playwright from npm cache or global path
+// Locate Playwright from node_modules, global path, or local npm/npx cache
 let playwright;
 try {
   playwright = require('playwright');
 } catch (e) {
-  const cachePath = 'C:\\Users\\parth\\AppData\\Local\\npm-cache\\_npx\\e41f203b7505f1fb\\node_modules\\playwright';
-  if (fs.existsSync(cachePath)) {
-    playwright = require(cachePath);
-  } else {
-    throw new Error('Playwright not found in standard paths: ' + e.message);
+  const localAppData = process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'AppData', 'Local') : '');
+  let found = false;
+  if (localAppData) {
+    const npxCacheDir = path.join(localAppData, 'npm-cache', '_npx');
+    if (fs.existsSync(npxCacheDir)) {
+      const dirs = fs.readdirSync(npxCacheDir);
+      for (const d of dirs) {
+        const candidate = path.join(npxCacheDir, d, 'node_modules', 'playwright');
+        if (fs.existsSync(candidate)) {
+          playwright = require(candidate);
+          found = true;
+          break;
+        }
+      }
+    }
+  }
+  if (!found) {
+    throw new Error('Playwright not found in environment: ' + e.message);
   }
 }
 
@@ -55,10 +68,14 @@ const homeHtml = homeRaw
 // Read Settings UI template
 const settingsUiSrc = fs.readFileSync(path.join(REPO_ROOT, 'crates', 'app', 'src', 'settings_ui.rs'), 'utf8');
 const settingsRaw = extractTemplate(settingsUiSrc, 'SETTINGS_TEMPLATE');
+const defaultDownloads = process.env.USERPROFILE
+  ? path.join(process.env.USERPROFILE, 'Downloads')
+  : path.join('C:', 'Users', 'Default', 'Downloads');
+
 const settingsHtml = settingsRaw
   .replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64)
   .replace('Detecting...', 'v153.0.4234.48 (Active)')
-  .replace(/\{\{DEFAULT_DOWNLOAD_FOLDER\}\}/g, 'C:\\Users\\parth\\Downloads');
+  .replace(/\{\{DEFAULT_DOWNLOAD_FOLDER\}\}/g, defaultDownloads);
 
 // Read Chrome Strip template
 const chromeHtml = fs.readFileSync(path.join(REPO_ROOT, 'crates', 'app', 'ui', 'index.html'), 'utf8');

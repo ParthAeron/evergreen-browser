@@ -2,7 +2,7 @@
 name = "evergreen-installer"
 version = "0.1.0"
 edition = "2021"
-authors = ["Parth"]
+authors = ["Evergreen Browser Contributors"]
 description = "Fast, non-elevated desktop installer for Evergreen Browser"
 license = "MIT OR Apache-2.0"
 

@@ -2,7 +2,7 @@
 name = "evergreen-browser"
 version = "0.1.0"
 edition = "2021"
-authors = ["Parth"]
+authors = ["Evergreen Browser Contributors"]
 description = "Ultra-lightweight, privacy-first desktop browser shell for Windows"
 license = "MIT OR Apache-2.0"
 

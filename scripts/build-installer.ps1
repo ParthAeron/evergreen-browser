@@ -15,6 +15,13 @@ if (-not (Test-Path "crates/app/ui/icon_64.rgba") -or -not (Test-Path "crates/ap
     Write-Host "`n[1/4] High-DPI icon suite verified." -ForegroundColor Green
 }
 
+# Configure path remapping to eliminate local machine/user paths from binary panics and symbols
+$userProfileFwd = $env:USERPROFILE.Replace('\', '/')
+$userProfileBack = $env:USERPROFILE
+$repoRoot = (Resolve-Path "$PSScriptRoot/..").Path
+$repoFwd = $repoRoot.Replace('\', '/')
+$env:RUSTFLAGS = "--remap-path-prefix=$userProfileBack=~ --remap-path-prefix=$userProfileFwd=~ --remap-path-prefix=$repoRoot=evergreen-browser --remap-path-prefix=$repoFwd=evergreen-browser"
+
 # 2. Build evergreen-browser release binary
 Write-Host "`n[2/4] Compiling evergreen-browser (Release profile)..." -ForegroundColor Yellow
 cargo build --release -p evergreen-browser

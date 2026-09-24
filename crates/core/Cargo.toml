@@ -2,7 +2,7 @@
 name = "evergreen-core"
 version = "0.1.0"
 edition = "2021"
-authors = ["Parth"]
+authors = ["Evergreen Browser Contributors"]
 description = "Engine-agnostic core logic and interfaces for Evergreen Browser"
 license = "MIT OR Apache-2.0"
 

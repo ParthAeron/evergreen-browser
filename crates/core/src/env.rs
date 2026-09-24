@@ -50,10 +50,22 @@ pub fn parse_version_tuple(v: &str) -> Option<Vec<u64>> {
 pub fn detect_webview2_runtime() -> Option<String> {
     let mut candidates: Vec<String> = Vec::new();
 
-    let search_paths = [
-        PathBuf::from(r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application"),
-        PathBuf::from(r"C:\Program Files\Microsoft\EdgeWebView\Application"),
-    ];
+    let mut search_paths: Vec<PathBuf> = Vec::new();
+    if let Ok(pf86) = std::env::var("ProgramFiles(x86)") {
+        search_paths.push(PathBuf::from(pf86).join(r"Microsoft\EdgeWebView\Application"));
+    }
+    if let Ok(pf) = std::env::var("ProgramFiles") {
+        search_paths.push(PathBuf::from(pf).join(r"Microsoft\EdgeWebView\Application"));
+    }
+    let sys_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string());
+    search_paths.push(PathBuf::from(format!(
+        r"{}\Program Files (x86)\Microsoft\EdgeWebView\Application",
+        sys_drive
+    )));
+    search_paths.push(PathBuf::from(format!(
+        r"{}\Program Files\Microsoft\EdgeWebView\Application",
+        sys_drive
+    )));
 
     for path in &search_paths {
         if path.exists() {
