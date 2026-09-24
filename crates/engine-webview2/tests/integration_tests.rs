@@ -8,11 +8,16 @@ fn test_webview2_host_initialization() {
     let info = host.info();
 
     assert!(!info.name.is_empty(), "Engine name must not be empty");
-    assert!(info.is_hardware_accelerated, "Hardware acceleration must be true");
+    assert!(
+        info.is_hardware_accelerated,
+        "Hardware acceleration must be true"
+    );
     assert!(info.sandbox_enabled, "Sandbox must be enabled");
 
     if let Some(detected_version) = detect_webview2_runtime() {
-        assert_eq!(info.version, detected_version, "Reported version must match detected runtime");
+        assert_eq!(
+            info.version, detected_version,
+            "Reported version must match detected runtime"
+        );
     }
 }
-

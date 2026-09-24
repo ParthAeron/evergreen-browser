@@ -41,7 +41,12 @@ impl EngineHost for WebView2Host {
         }
     }
 
-    fn create_tab_webview(&mut self, tab_id: TabId, url: &str, _incognito: bool) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_tab_webview(
+        &mut self,
+        tab_id: TabId,
+        url: &str,
+        _incognito: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.tabs.insert(tab_id, url.to_string());
         Ok(())
     }

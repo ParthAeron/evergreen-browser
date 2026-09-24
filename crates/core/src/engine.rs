@@ -19,7 +19,12 @@ pub trait EngineHost {
     fn info(&self) -> EngineInfo;
 
     /// Create and attach a child webview for a given tab
-    fn create_tab_webview(&mut self, tab_id: TabId, url: &str, incognito: bool) -> Result<(), Box<dyn std::error::Error>>;
+    fn create_tab_webview(
+        &mut self,
+        tab_id: TabId,
+        url: &str,
+        incognito: bool,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// Show and focus a tab's webview
     fn show_tab(&mut self, tab_id: TabId) -> Result<(), Box<dyn std::error::Error>>;

@@ -691,48 +691,87 @@ pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
         .replace("{{DEFAULT_DOWNLOAD_FOLDER}}", &download_dir_str);
 
     let engine = settings.search_engine.to_lowercase();
-    html = html.replace(&format!("id=\"opt_{}\"", engine), &format!("id=\"opt_{}\" selected", engine));
+    html = html.replace(
+        &format!("id=\"opt_{}\"", engine),
+        &format!("id=\"opt_{}\" selected", engine),
+    );
 
     if !settings.downloads.ask_where_to_save {
-        html = html.replace("id=\"askWhereToSaveToggle\" checked", "id=\"askWhereToSaveToggle\"");
+        html = html.replace(
+            "id=\"askWhereToSaveToggle\" checked",
+            "id=\"askWhereToSaveToggle\"",
+        );
     }
     if !settings.downloads.show_progress_toolbar {
-        html = html.replace("id=\"showProgressToolbarToggle\" checked", "id=\"showProgressToolbarToggle\"");
+        html = html.replace(
+            "id=\"showProgressToolbarToggle\" checked",
+            "id=\"showProgressToolbarToggle\"",
+        );
     }
     if !settings.tabs.enable_tab_reordering {
-        html = html.replace("id=\"tabReorderingToggle\" checked", "id=\"tabReorderingToggle\"");
+        html = html.replace(
+            "id=\"tabReorderingToggle\" checked",
+            "id=\"tabReorderingToggle\"",
+        );
     }
     if !settings.tabs.enable_tab_tearoff {
         html = html.replace("id=\"tabTearoffToggle\" checked", "id=\"tabTearoffToggle\"");
     }
     if !settings.appearance.show_zoom_badge {
-        html = html.replace("id=\"showZoomBadgeToggle\" checked", "id=\"showZoomBadgeToggle\"");
+        html = html.replace(
+            "id=\"showZoomBadgeToggle\" checked",
+            "id=\"showZoomBadgeToggle\"",
+        );
     }
     if !settings.appearance.enable_link_preview {
-        html = html.replace("id=\"enableLinkPreviewToggle\" checked", "id=\"enableLinkPreviewToggle\"");
+        html = html.replace(
+            "id=\"enableLinkPreviewToggle\" checked",
+            "id=\"enableLinkPreviewToggle\"",
+        );
     }
     if !settings.appearance.show_status_preview {
-        html = html.replace("id=\"showStatusPreviewToggle\" checked", "id=\"showStatusPreviewToggle\"");
+        html = html.replace(
+            "id=\"showStatusPreviewToggle\" checked",
+            "id=\"showStatusPreviewToggle\"",
+        );
     }
 
     // Pluggable Feature Toggles
     if !settings.features.enable_find_in_page {
-        html = html.replace("id=\"featureFindInPageToggle\" checked", "id=\"featureFindInPageToggle\"");
+        html = html.replace(
+            "id=\"featureFindInPageToggle\" checked",
+            "id=\"featureFindInPageToggle\"",
+        );
     }
     if !settings.features.enable_downloads_manager {
-        html = html.replace("id=\"featureDownloadsToggle\" checked", "id=\"featureDownloadsToggle\"");
+        html = html.replace(
+            "id=\"featureDownloadsToggle\" checked",
+            "id=\"featureDownloadsToggle\"",
+        );
     }
     if !settings.features.enable_link_preview {
-        html = html.replace("id=\"featureLinkPreviewToggle\" checked", "id=\"featureLinkPreviewToggle\"");
+        html = html.replace(
+            "id=\"featureLinkPreviewToggle\" checked",
+            "id=\"featureLinkPreviewToggle\"",
+        );
     }
     if !settings.features.enable_tab_gestures {
-        html = html.replace("id=\"featureTabGesturesToggle\" checked", "id=\"featureTabGesturesToggle\"");
+        html = html.replace(
+            "id=\"featureTabGesturesToggle\" checked",
+            "id=\"featureTabGesturesToggle\"",
+        );
     }
     if !settings.features.enable_zoom_controls {
-        html = html.replace("id=\"featureZoomControlsToggle\" checked", "id=\"featureZoomControlsToggle\"");
+        html = html.replace(
+            "id=\"featureZoomControlsToggle\" checked",
+            "id=\"featureZoomControlsToggle\"",
+        );
     }
     if !settings.features.enable_permissions_prompt {
-        html = html.replace("id=\"featurePermissionsToggle\" checked", "id=\"featurePermissionsToggle\"");
+        html = html.replace(
+            "id=\"featurePermissionsToggle\" checked",
+            "id=\"featurePermissionsToggle\"",
+        );
     }
 
     // Zoom level
@@ -749,7 +788,10 @@ pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
     } else {
         "opt_zoom_100"
     };
-    html = html.replace(&format!("id=\"{}\"", zoom_id), &format!("id=\"{}\" selected", zoom_id));
+    html = html.replace(
+        &format!("id=\"{}\"", zoom_id),
+        &format!("id=\"{}\" selected", zoom_id),
+    );
 
     // Site permissions
     let perms = [
@@ -761,7 +803,10 @@ pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
     for (perm_name, perm_val) in perms {
         let val_lower = perm_val.to_lowercase();
         let target_id = format!("opt_perm_{}_{}", perm_name, val_lower);
-        html = html.replace(&format!("id=\"{}\"", target_id), &format!("id=\"{}\" selected", target_id));
+        html = html.replace(
+            &format!("id=\"{}\"", target_id),
+            &format!("id=\"{}\" selected", target_id),
+        );
     }
 
     html

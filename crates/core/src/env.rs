@@ -167,4 +167,3 @@ mod tests {
         assert_eq!(list.pop(), Some("154.0.100.1".to_string()));
     }
 }
-

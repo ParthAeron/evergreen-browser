@@ -1,6 +1,6 @@
-use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::process::Command;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -23,9 +23,7 @@ pub fn run_local_command(cmd_str: &str) -> Result<UpdateCommandResult, std::io::
         cmd.creation_flags(CREATE_NO_WINDOW);
         cmd.output()?
     } else {
-        Command::new("sh")
-            .args(["-c", cmd_str])
-            .output()?
+        Command::new("sh").args(["-c", cmd_str]).output()?
     };
 
     Ok(UpdateCommandResult {

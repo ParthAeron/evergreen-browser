@@ -44,7 +44,11 @@ fn test_security_v1_malformed_json_fuzzing() {
 
     for input in fuzzed_inputs {
         let res = serde_json::from_str::<UiToHostMessage>(input);
-        assert!(res.is_err(), "Malformed JSON must not parse into UiToHostMessage: {:?}", input);
+        assert!(
+            res.is_err(),
+            "Malformed JSON must not parse into UiToHostMessage: {:?}",
+            input
+        );
     }
 }
 
@@ -54,7 +58,10 @@ fn test_security_v1_inner_settings_json_malformed_safety() {
     // host safely ignores it without panic or state corruption.
     let malformed_inner = "{not valid json!!";
     let parsed_inner = serde_json::from_str::<serde_json::Value>(malformed_inner);
-    assert!(parsed_inner.is_err(), "Invalid inner JSON must not parse into Value");
+    assert!(
+        parsed_inner.is_err(),
+        "Invalid inner JSON must not parse into Value"
+    );
 
     // Default settings must remain intact
     let mut settings = Settings::default();
@@ -62,7 +69,10 @@ fn test_security_v1_inner_settings_json_malformed_safety() {
     if let Ok(val) = parsed_inner {
         settings.update_from_json(&val);
     }
-    assert_eq!(settings.search_engine, original_engine, "Settings must not mutate on invalid JSON");
+    assert_eq!(
+        settings.search_engine, original_engine,
+        "Settings must not mutate on invalid JSON"
+    );
 }
 
 #[test]
@@ -78,7 +88,11 @@ fn test_security_v1_unknown_and_dangerous_action_rejection() {
 
     for action_json in dangerous_actions {
         let res = serde_json::from_str::<UiToHostMessage>(action_json);
-        assert!(res.is_err(), "Unknown/dangerous action tag must be rejected: {}", action_json);
+        assert!(
+            res.is_err(),
+            "Unknown/dangerous action tag must be rejected: {}",
+            action_json
+        );
     }
 }
 
@@ -94,7 +108,10 @@ fn test_security_v1_massive_dos_payload_handling() {
     });
 
     let parsed: Result<UiToHostMessage, _> = serde_json::from_value(json);
-    assert!(parsed.is_ok(), "10MB string must be parsed gracefully without panic");
+    assert!(
+        parsed.is_ok(),
+        "10MB string must be parsed gracefully without panic"
+    );
     if let Ok(UiToHostMessage::Navigate { url }) = parsed {
         assert_eq!(url.len(), 10 * 1024 * 1024);
     }
@@ -150,7 +167,11 @@ fn test_security_v2_case_insensitive_scheme_injection() {
 
     for disallowed in disallowed_schemes {
         let res = normalize_url(disallowed, search_template);
-        assert!(res.is_err(), "Disallowed URI scheme must be rejected: {}", disallowed);
+        assert!(
+            res.is_err(),
+            "Disallowed URI scheme must be rejected: {}",
+            disallowed
+        );
     }
 }
 
@@ -159,7 +180,10 @@ fn test_security_v2_safe_schemes_and_search_query_resolution() {
     let search_template = "https://duckduckgo.com/?q=%s";
 
     let safe_inputs = vec![
-        ("https://github.com/rust-lang/rust", "https://github.com/rust-lang/rust"),
+        (
+            "https://github.com/rust-lang/rust",
+            "https://github.com/rust-lang/rust",
+        ),
         ("http://example.org", "http://example.org"),
         ("evergreen://newtab", "evergreen://newtab"),
         ("evergreen://settings", "evergreen://settings"),
@@ -173,19 +197,35 @@ fn test_security_v2_safe_schemes_and_search_query_resolution() {
 
     for (input, expected) in safe_inputs {
         let res = normalize_url(input, search_template);
-        assert_eq!(res.unwrap(), expected, "Valid URL failed normalization: {}", input);
+        assert_eq!(
+            res.unwrap(),
+            expected,
+            "Valid URL failed normalization: {}",
+            input
+        );
     }
 
     // Search query fallback verification
     let search_queries = vec![
-        ("rust async runtime", "https://duckduckgo.com/?q=rust+async+runtime"),
+        (
+            "rust async runtime",
+            "https://duckduckgo.com/?q=rust+async+runtime",
+        ),
         ("hello world", "https://duckduckgo.com/?q=hello+world"),
-        ("what is webview2?", "https://duckduckgo.com/?q=what+is+webview2%3F"),
+        (
+            "what is webview2?",
+            "https://duckduckgo.com/?q=what+is+webview2%3F",
+        ),
     ];
 
     for (query, expected) in search_queries {
         let res = normalize_url(query, search_template);
-        assert_eq!(res.unwrap(), expected, "Search query normalization mismatch: {}", query);
+        assert_eq!(
+            res.unwrap(),
+            expected,
+            "Search query normalization mismatch: {}",
+            query
+        );
     }
 }
 
@@ -230,7 +270,10 @@ fn test_security_v4_host_object_isolation_invariants() {
     // Verify IPC message definitions do not expose arbitrary method reflection
     let json_sample = r#"{"action": "HostObjectCall", "payload": {"method": "GetProcess"}}"#;
     let parsed = serde_json::from_str::<UiToHostMessage>(json_sample);
-    assert!(parsed.is_err(), "Arbitrary host object calls must be strictly rejected");
+    assert!(
+        parsed.is_err(),
+        "Arbitrary host object calls must be strictly rejected"
+    );
 }
 
 // ============================================================================
@@ -269,7 +312,10 @@ fn test_security_v6_process_elevation_token_check() {
     // Calling is_process_elevated must execute safely without panicking.
     // In standard CI/development runs, the process runs unelevated (false).
     let elevated = is_process_elevated();
-    println!("[SECURITY AUDIT] Process elevated token status: {}", elevated);
+    println!(
+        "[SECURITY AUDIT] Process elevated token status: {}",
+        elevated
+    );
 }
 
 // ============================================================================
@@ -293,7 +339,10 @@ fn test_security_v7_bounded_history_capacity() {
         restored_count += 1;
     }
 
-    assert_eq!(restored_count, 50, "Closed tab history must be capped at 50 items");
+    assert_eq!(
+        restored_count, 50,
+        "Closed tab history must be capped at 50 items"
+    );
 }
 
 // ============================================================================
@@ -304,7 +353,10 @@ fn test_security_v7_bounded_history_capacity() {
 fn test_security_v8_portable_data_isolation() {
     let temp_sandbox = std::env::temp_dir().join(format!(
         "evergreen_sec_v8_{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ));
     std::fs::create_dir_all(&temp_sandbox).unwrap();
 

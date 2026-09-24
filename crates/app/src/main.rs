@@ -1,13 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! Evergreen Browser — Main Application Entrypoint
 
-mod chrome;
-mod window;
 mod accelerator;
-mod settings_ui;
-mod home_ui;
-mod sidebar_ui;
 mod cert;
+mod chrome;
+mod home_ui;
+mod settings_ui;
+mod sidebar_ui;
+mod window;
 
 use chrome::{create_bounds, get_chrome_html, normalize_url, CHROME_HEIGHT};
 use evergreen_core::env::{detect_webview2_runtime, is_process_elevated};
@@ -188,11 +188,16 @@ impl WindowContext {
         if let Some(chrome) = &self.chrome_webview {
             #[cfg(target_os = "windows")]
             {
-                use wry::WebViewExtWindows;
                 use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC;
-                let _ = unsafe { chrome.controller().MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC) };
+                use wry::WebViewExtWindows;
+                let _ = unsafe {
+                    chrome
+                        .controller()
+                        .MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC)
+                };
             }
-            let _ = chrome.evaluate_script("if (window.__focusOmnibox) { window.__focusOmnibox(); }");
+            let _ =
+                chrome.evaluate_script("if (window.__focusOmnibox) { window.__focusOmnibox(); }");
         }
     }
 
@@ -203,7 +208,10 @@ impl WindowContext {
                 active_tab_id: self.tab_manager.active_tab().map(|t| t.id),
             };
             if let Ok(json_str) = serde_json::to_string(&sync_msg) {
-                let script = format!("if (window.__shellUpdate) {{ window.__shellUpdate({}); }}", json_str);
+                let script = format!(
+                    "if (window.__shellUpdate) {{ window.__shellUpdate({}); }}",
+                    json_str
+                );
                 let _ = chrome.evaluate_script(&script);
             }
         }
@@ -264,7 +272,10 @@ impl WindowContext {
     pub fn handle_find_in_page(&self, query: &str, forward: bool) {
         if let Some(active) = self.tab_manager.active_tab() {
             if let Some(wv) = self.tabs.get(&active.id) {
-                let escaped_query = query.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', " ");
+                let escaped_query = query
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'")
+                    .replace('\n', " ");
                 let script = format!(
                     r#"
                     (() => {{
@@ -296,12 +307,17 @@ impl WindowContext {
     pub fn handle_close_find_in_page(&self) {
         if let Some(active) = self.tab_manager.active_tab() {
             if let Some(wv) = self.tabs.get(&active.id) {
-                let _ = wv.evaluate_script("if (window.getSelection) { window.getSelection().removeAllRanges(); }");
+                let _ = wv.evaluate_script(
+                    "if (window.getSelection) { window.getSelection().removeAllRanges(); }",
+                );
             }
         }
     }
 
-    pub fn ensure_sidebar_webview(&mut self, proxy: EventLoopProxy<BrowserEvent>) -> Result<(), wry::Error> {
+    pub fn ensure_sidebar_webview(
+        &mut self,
+        proxy: EventLoopProxy<BrowserEvent>,
+    ) -> Result<(), wry::Error> {
         if self.sidebar_webview.is_none() {
             let window = self.window.clone();
             let chrome_h = self.current_chrome_height();
@@ -346,13 +362,21 @@ impl WindowContext {
             };
 
             if let Ok(json_str) = serde_json::to_string(&sync_msg) {
-                let script = format!("if (window.__sidebarSync) {{ window.__sidebarSync({}); }}", json_str);
+                let script = format!(
+                    "if (window.__sidebarSync) {{ window.__sidebarSync({}); }}",
+                    json_str
+                );
                 let _ = sidebar.evaluate_script(&script);
             }
         }
     }
 
-    pub fn open_sidebar(&mut self, mode: &str, cert_cache: &cert::CertificateCache, proxy: EventLoopProxy<BrowserEvent>) {
+    pub fn open_sidebar(
+        &mut self,
+        mode: &str,
+        cert_cache: &cert::CertificateCache,
+        proxy: EventLoopProxy<BrowserEvent>,
+    ) {
         self.is_sidebar_open = true;
         self.sidebar_mode = mode.to_string();
 
@@ -372,7 +396,12 @@ impl WindowContext {
         self.update_layout();
     }
 
-    pub fn toggle_sidebar(&mut self, mode: &str, cert_cache: &cert::CertificateCache, proxy: EventLoopProxy<BrowserEvent>) {
+    pub fn toggle_sidebar(
+        &mut self,
+        mode: &str,
+        cert_cache: &cert::CertificateCache,
+        proxy: EventLoopProxy<BrowserEvent>,
+    ) {
         if self.is_sidebar_open && self.sidebar_mode == mode {
             self.close_sidebar();
         } else {
@@ -405,7 +434,10 @@ impl WindowContext {
     }
 
     pub fn handle_switch_tab(&mut self, target_id: TabId, cert_cache: &cert::CertificateCache) {
-        if self.tab_manager.switch_tab(target_id, BrowserApp::now_secs()) {
+        if self
+            .tab_manager
+            .switch_tab(target_id, BrowserApp::now_secs())
+        {
             for (id, wv) in &self.tabs {
                 if *id == target_id {
                     let _ = wv.set_visible(true);
@@ -462,7 +494,8 @@ struct BrowserApp {
 impl BrowserApp {
     fn new(proxy: EventLoopProxy<BrowserEvent>, runtime_version: String) -> Self {
         let settings_path = get_settings_path();
-        let settings = evergreen_core::settings::Settings::load_from_path(&settings_path).unwrap_or_default();
+        let settings =
+            evergreen_core::settings::Settings::load_from_path(&settings_path).unwrap_or_default();
         let mut plugins = evergreen_core::plugins::PluginRegistry::new();
         plugins.register(evergreen_core::plugins::FeaturePlugin::new(
             evergreen_core::plugins::PluginMetadata {
@@ -493,7 +526,8 @@ impl BrowserApp {
                 id: "link_preview".to_string(),
                 name: "Link Destination Preview (Status Bubble)".to_string(),
                 version: "1.0.0".to_string(),
-                description: "Bottom-left destination URL capsule when hovering hyperlinks".to_string(),
+                description: "Bottom-left destination URL capsule when hovering hyperlinks"
+                    .to_string(),
                 author: "Evergreen Team".to_string(),
                 is_core: false,
                 enabled_by_default: true,
@@ -561,7 +595,11 @@ impl BrowserApp {
         TabId(self.next_tab_id.fetch_add(1, Ordering::SeqCst))
     }
 
-    fn create_browser_window(&mut self, event_loop: &ActiveEventLoop, initial_url: Option<String>) -> Option<WindowId> {
+    fn create_browser_window(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        initial_url: Option<String>,
+    ) -> Option<WindowId> {
         let mut window_attributes = window::default_window_attributes();
         window_attributes = window_attributes.with_visible(false);
 
@@ -577,14 +615,22 @@ impl BrowserApp {
         let scale = window.scale_factor();
         let physical_size = window.inner_size();
         let logical = physical_size.to_logical::<f64>(scale);
-        let win_width = if logical.width > 0.0 { logical.width } else { 1280.0 };
-        let win_height = if logical.height > 0.0 { logical.height } else { 800.0 };
+        let win_width = if logical.width > 0.0 {
+            logical.width
+        } else {
+            1280.0
+        };
+        let win_height = if logical.height > 0.0 {
+            logical.height
+        } else {
+            800.0
+        };
 
         #[cfg(target_os = "windows")]
         {
+            use windows::Win32::Foundation::{COLORREF, HWND};
             use windows::Win32::Graphics::Gdi::CreateSolidBrush;
             use windows::Win32::UI::WindowsAndMessaging::{SetClassLongPtrW, GCLP_HBRBACKGROUND};
-            use windows::Win32::Foundation::{COLORREF, HWND};
             use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
             #[link(name = "dwmapi")]
@@ -601,12 +647,18 @@ impl BrowserApp {
                 if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
                     let hwnd = HWND(win32_handle.hwnd.get() as _);
                     let dark_brush = unsafe { CreateSolidBrush(COLORREF(0x00201818)) }; // RGB(24, 24, 32)
-                    let _ = unsafe { SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, dark_brush.0 as isize) };
+                    let _ = unsafe {
+                        SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, dark_brush.0 as isize)
+                    };
 
                     let dark_mode: i32 = 1;
-                    let _ = unsafe { DwmSetWindowAttribute(hwnd.0 as _, 20, &dark_mode as *const _ as _, 4) };
+                    let _ = unsafe {
+                        DwmSetWindowAttribute(hwnd.0 as _, 20, &dark_mode as *const _ as _, 4)
+                    };
                     let caption_color: u32 = 0x00201818;
-                    let _ = unsafe { DwmSetWindowAttribute(hwnd.0 as _, 35, &caption_color as *const _ as _, 4) };
+                    let _ = unsafe {
+                        DwmSetWindowAttribute(hwnd.0 as _, 35, &caption_color as *const _ as _, 4)
+                    };
                 }
             }
         }
@@ -665,7 +717,9 @@ impl BrowserApp {
         self.windows.insert(win_id, win_ctx);
 
         let target_url = initial_url.or_else(|| {
-            std::env::args().nth(1).filter(|a| !a.is_empty() && !a.starts_with('-'))
+            std::env::args()
+                .nth(1)
+                .filter(|a| !a.is_empty() && !a.starts_with('-'))
         });
         self.handle_create_tab(win_id, target_url);
 
@@ -731,7 +785,13 @@ impl BrowserApp {
         builder = builder.with_custom_protocol("evergreen".into(), move |_webview_id, request| {
             let host = request.uri().host().unwrap_or("");
             let path = request.uri().path();
-            if host == "newtab" || host == "home" || path == "/newtab" || path == "/home" || path == "newtab" || path == "home" {
+            if host == "newtab"
+                || host == "home"
+                || path == "/newtab"
+                || path == "/home"
+                || path == "newtab"
+                || path == "home"
+            {
                 wry::http::Response::builder()
                     .header("Content-Type", "text/html; charset=utf-8")
                     .body(std::borrow::Cow::Owned(home_bytes.clone()))
@@ -739,7 +799,8 @@ impl BrowserApp {
             } else if host == "settings" || path == "/settings" || path == "settings" {
                 let active_ver = evergreen_core::env::detect_webview2_runtime()
                     .unwrap_or_else(|| fallback_runtime_ver.clone());
-                let dynamic_settings_html = settings_ui::get_settings_html(&active_ver, &settings_clone);
+                let dynamic_settings_html =
+                    settings_ui::get_settings_html(&active_ver, &settings_clone);
                 wry::http::Response::builder()
                     .header("Content-Type", "text/html; charset=utf-8")
                     .body(std::borrow::Cow::Owned(dynamic_settings_html.into_bytes()))
@@ -755,8 +816,10 @@ impl BrowserApp {
         if is_newtab {
             builder = builder.with_html(home_html_content);
         } else if is_settings {
-            let active_ver = evergreen_core::env::detect_webview2_runtime().unwrap_or_else(|| runtime_ver.clone());
-            builder = builder.with_html(settings_ui::get_settings_html(&active_ver, &self.settings));
+            let active_ver = evergreen_core::env::detect_webview2_runtime()
+                .unwrap_or_else(|| runtime_ver.clone());
+            builder =
+                builder.with_html(settings_ui::get_settings_html(&active_ver, &self.settings));
         } else {
             builder = builder.with_url(url);
         }
@@ -764,14 +827,16 @@ impl BrowserApp {
         let proxy_nav_interceptor = self.proxy.clone();
         let webview = builder
             .with_document_title_changed_handler(move |title: String| {
-                let _ = proxy_title.send_event(BrowserEvent::TabTitleChanged(win_id, tab_id, title));
+                let _ =
+                    proxy_title.send_event(BrowserEvent::TabTitleChanged(win_id, tab_id, title));
             })
             .with_navigation_handler(move |nav_url: String| {
                 if nav_url.starts_with("data:text/html") {
                     return true;
                 }
                 if nav_url.starts_with("evergreen://settings") {
-                    let _ = proxy_nav_interceptor.send_event(BrowserEvent::Ipc(win_id, UiToHostMessage::OpenSettings));
+                    let _ = proxy_nav_interceptor
+                        .send_event(BrowserEvent::Ipc(win_id, UiToHostMessage::OpenSettings));
                     return false;
                 }
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(win_id, tab_id, nav_url));
@@ -785,7 +850,13 @@ impl BrowserApp {
             .build_as_child(window)?;
 
         accelerator::attach_accelerator_keys(&webview, win_id, self.proxy.clone());
-        accelerator::attach_navigation_events(&webview, win_id, tab_id, self.proxy.clone(), self.allowed_cert_hosts.clone());
+        accelerator::attach_navigation_events(
+            &webview,
+            win_id,
+            tab_id,
+            self.proxy.clone(),
+            self.allowed_cert_hosts.clone(),
+        );
 
         Ok(webview)
     }
@@ -798,7 +869,11 @@ impl BrowserApp {
             let tab_state = TabState {
                 id: tab_id,
                 url: target_url.clone(),
-                title: if target_url == "evergreen://settings" { "Settings".to_string() } else { "New Tab".to_string() },
+                title: if target_url == "evergreen://settings" {
+                    "Settings".to_string()
+                } else {
+                    "New Tab".to_string()
+                },
                 favicon_uri: None,
                 is_loading: false,
                 can_go_back: false,
@@ -823,7 +898,16 @@ impl BrowserApp {
             let is_sidebar_open = win_ctx.is_sidebar_open;
             let chrome_h = win_ctx.current_chrome_height();
 
-            match self.create_tab_webview(win_id, actual_id, &target_url, window.as_ref(), win_width, win_height, is_sidebar_open, chrome_h) {
+            match self.create_tab_webview(
+                win_id,
+                actual_id,
+                &target_url,
+                window.as_ref(),
+                win_width,
+                win_height,
+                is_sidebar_open,
+                chrome_h,
+            ) {
                 Ok(wv) => {
                     let _ = wv.set_visible(true);
                     if let Some(win_ctx) = self.windows.get_mut(&win_id) {
@@ -846,7 +930,12 @@ impl BrowserApp {
     fn handle_open_settings(&mut self, win_id: WindowId) {
         if let Some(win_ctx) = self.windows.get_mut(&win_id) {
             win_ctx.close_sidebar();
-            if let Some(existing) = win_ctx.tab_manager.tabs().iter().find(|t| t.url.starts_with("evergreen://settings")) {
+            if let Some(existing) = win_ctx
+                .tab_manager
+                .tabs()
+                .iter()
+                .find(|t| t.url.starts_with("evergreen://settings"))
+            {
                 let id = existing.id;
                 win_ctx.handle_switch_tab(id, &self.cert_cache);
                 return;
@@ -855,7 +944,12 @@ impl BrowserApp {
         self.handle_create_tab(win_id, Some("evergreen://settings".to_string()));
     }
 
-    fn handle_close_tab(&mut self, win_id: WindowId, target_id: TabId, event_loop: &ActiveEventLoop) {
+    fn handle_close_tab(
+        &mut self,
+        win_id: WindowId,
+        target_id: TabId,
+        event_loop: &ActiveEventLoop,
+    ) {
         let should_close_window = if let Some(win_ctx) = self.windows.get_mut(&win_id) {
             if let Some(wv) = win_ctx.tabs.remove(&target_id) {
                 let _ = wv.set_visible(false);
@@ -881,7 +975,14 @@ impl BrowserApp {
         }
     }
 
-    fn handle_detach_tab(&mut self, source_win_id: WindowId, tab_id: TabId, screen_x: Option<f64>, screen_y: Option<f64>, event_loop: &ActiveEventLoop) {
+    fn handle_detach_tab(
+        &mut self,
+        source_win_id: WindowId,
+        tab_id: TabId,
+        screen_x: Option<f64>,
+        screen_y: Option<f64>,
+        event_loop: &ActiveEventLoop,
+    ) {
         let tab_state_opt = if let Some(win_ctx) = self.windows.get_mut(&source_win_id) {
             let extracted = win_ctx.tab_manager.extract_tab(tab_id);
             if let Some(wv) = win_ctx.tabs.remove(&tab_id) {
@@ -898,11 +999,17 @@ impl BrowserApp {
             if let (Some(sx), Some(sy)) = (screen_x, screen_y) {
                 for (w_id, w_ctx) in &self.windows {
                     if *w_id != source_win_id {
-                        if let (Ok(pos), size) = (w_ctx.window.outer_position(), w_ctx.window.outer_size()) {
+                        if let (Ok(pos), size) =
+                            (w_ctx.window.outer_position(), w_ctx.window.outer_size())
+                        {
                             let scale = w_ctx.window.scale_factor();
                             let l_pos = pos.to_logical::<f64>(scale);
                             let l_size = size.to_logical::<f64>(scale);
-                            if sx >= l_pos.x && sx <= l_pos.x + l_size.width && sy >= l_pos.y && sy <= l_pos.y + l_size.height {
+                            if sx >= l_pos.x
+                                && sx <= l_pos.x + l_size.width
+                                && sy >= l_pos.y
+                                && sy <= l_pos.y + l_size.height
+                            {
                                 target_win_id = Some(*w_id);
                                 break;
                             }
@@ -913,10 +1020,17 @@ impl BrowserApp {
 
             if let Some(target_id) = target_win_id {
                 self.handle_create_tab(target_id, Some(tab_state.url));
-            } else if let Some(new_win_id) = self.create_browser_window(event_loop, Some(tab_state.url)) {
+            } else if let Some(new_win_id) =
+                self.create_browser_window(event_loop, Some(tab_state.url))
+            {
                 if let (Some(sx), Some(sy)) = (screen_x, screen_y) {
                     if let Some(new_win) = self.windows.get(&new_win_id) {
-                        new_win.window.set_outer_position(winit::dpi::LogicalPosition::new((sx - 200.0).max(0.0), (sy - 20.0).max(0.0)));
+                        new_win
+                            .window
+                            .set_outer_position(winit::dpi::LogicalPosition::new(
+                                (sx - 200.0).max(0.0),
+                                (sy - 20.0).max(0.0),
+                            ));
                     }
                 }
             }
@@ -957,7 +1071,10 @@ impl BrowserApp {
                         let active_id = active.id;
                         win_ctx.tab_manager.update_url(active_id, target.clone());
                         if let Some(host) = extract_host(&target) {
-                            win_ctx.tab_manager.update_favicon(active_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                            win_ctx.tab_manager.update_favicon(
+                                active_id,
+                                Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)),
+                            );
                         }
                         if let Some(wv) = win_ctx.tabs.get(&active_id) {
                             let _ = wv.load_url(&target);
@@ -971,13 +1088,19 @@ impl BrowserApp {
     }
 
     #[cfg(target_os = "windows")]
-    fn show_native_menu(&mut self, win_id: WindowId, logical_x: f64, logical_y: f64, event_loop: &ActiveEventLoop) {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            CreatePopupMenu, AppendMenuW, TrackPopupMenuEx, DestroyMenu,
-            MF_STRING, MF_SEPARATOR, TPM_RIGHTALIGN, TPM_TOPALIGN, TPM_RETURNCMD,
-        };
-        use windows::Win32::Foundation::{HWND, POINT};
+    fn show_native_menu(
+        &mut self,
+        win_id: WindowId,
+        logical_x: f64,
+        logical_y: f64,
+        event_loop: &ActiveEventLoop,
+    ) {
         use windows::core::w;
+        use windows::Win32::Foundation::{HWND, POINT};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            AppendMenuW, CreatePopupMenu, DestroyMenu, TrackPopupMenuEx, MF_SEPARATOR, MF_STRING,
+            TPM_RETURNCMD, TPM_RIGHTALIGN, TPM_TOPALIGN,
+        };
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         if let Some(win_ctx) = self.windows.get(&win_id) {
@@ -1035,7 +1158,14 @@ impl BrowserApp {
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn show_native_menu(&mut self, _win_id: WindowId, _x: f64, _y: f64, _event_loop: &ActiveEventLoop) {}
+    fn show_native_menu(
+        &mut self,
+        _win_id: WindowId,
+        _x: f64,
+        _y: f64,
+        _event_loop: &ActiveEventLoop,
+    ) {
+    }
 }
 
 impl ApplicationHandler<BrowserEvent> for BrowserApp {
@@ -1109,7 +1239,11 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 UiToHostMessage::MenuToggled { open } => {
                     if let Some(win) = self.windows.get(&win_id) {
                         if let Some(chrome) = &win.chrome_webview {
-                            let height = if open { 260.0 } else { win.current_chrome_height() };
+                            let height = if open {
+                                260.0
+                            } else {
+                                win.current_chrome_height()
+                            };
                             let chrome_bounds = create_bounds(0.0, 0.0, win.window_width, height);
                             let _ = chrome.set_bounds(chrome_bounds);
                         }
@@ -1145,7 +1279,13 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             if !url.starts_with("data:text/html") {
                                 win.tab_manager.update_url(active_id, url.clone());
                                 if let Some(host) = extract_host(&url) {
-                                    win.tab_manager.update_favicon(active_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                                    win.tab_manager.update_favicon(
+                                        active_id,
+                                        Some(format!(
+                                            "https://icons.duckduckgo.com/ip3/{}.ico",
+                                            host
+                                        )),
+                                    );
                                 }
                             }
                             if !title.is_empty() {
@@ -1184,13 +1324,20 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         }
                     }
                 }
-                UiToHostMessage::ReorderTab { from_index, to_index } => {
+                UiToHostMessage::ReorderTab {
+                    from_index,
+                    to_index,
+                } => {
                     if let Some(win) = self.windows.get_mut(&win_id) {
                         win.tab_manager.reorder_tab(from_index, to_index);
                         win.sync_ui_state();
                     }
                 }
-                UiToHostMessage::DetachTabToNewWindow { tab_id, screen_x, screen_y } => {
+                UiToHostMessage::DetachTabToNewWindow {
+                    tab_id,
+                    screen_x,
+                    screen_y,
+                } => {
                     self.handle_detach_tab(win_id, tab_id, screen_x, screen_y, event_loop);
                 }
                 UiToHostMessage::SetZoom { factor } => {
@@ -1260,7 +1407,10 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         win.update_layout();
                     }
                 }
-                UiToHostMessage::PermissionResponse { permission_id, allow } => {
+                UiToHostMessage::PermissionResponse {
+                    permission_id,
+                    allow,
+                } => {
                     accelerator::resolve_permission(permission_id, allow);
                 }
                 UiToHostMessage::TriggerLinkPreview { url, .. } => {
@@ -1295,10 +1445,18 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         let cmd = "powershell -NoProfile -Command \"$u='https://go.microsoft.com/fwlink/p/?LinkId=2124703'; $o=\\\"$env:TEMP\\MicrosoftEdgeWebview2Setup.exe\\\"; Invoke-WebRequest -Uri $u -OutFile $o; Start-Process -FilePath $o -ArgumentList '/silent','/install' -Wait\"";
                         match run_local_command(cmd) {
                             Ok(res) => {
-                                let _ = proxy.send_event(BrowserEvent::CommandDone("Engine Update".to_string(), res.success, res.stdout));
+                                let _ = proxy.send_event(BrowserEvent::CommandDone(
+                                    "Engine Update".to_string(),
+                                    res.success,
+                                    res.stdout,
+                                ));
                             }
                             Err(e) => {
-                                let _ = proxy.send_event(BrowserEvent::CommandDone("Engine Update".to_string(), false, e.to_string()));
+                                let _ = proxy.send_event(BrowserEvent::CommandDone(
+                                    "Engine Update".to_string(),
+                                    false,
+                                    e.to_string(),
+                                ));
                             }
                         }
                     });
@@ -1309,17 +1467,30 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         let cmd = "git pull && cargo build --release";
                         match run_local_command(cmd) {
                             Ok(res) => {
-                                let _ = proxy.send_event(BrowserEvent::CommandDone("Fork Update".to_string(), res.success, res.stdout));
+                                let _ = proxy.send_event(BrowserEvent::CommandDone(
+                                    "Fork Update".to_string(),
+                                    res.success,
+                                    res.stdout,
+                                ));
                             }
                             Err(e) => {
-                                let _ = proxy.send_event(BrowserEvent::CommandDone("Fork Update".to_string(), false, e.to_string()));
+                                let _ = proxy.send_event(BrowserEvent::CommandDone(
+                                    "Fork Update".to_string(),
+                                    false,
+                                    e.to_string(),
+                                ));
                             }
                         }
                     });
                 }
                 UiToHostMessage::ReloadTab { tab_id } => {
                     if let Some(win) = self.windows.get_mut(&win_id) {
-                        if let Some(tab) = win.tab_manager.tabs_mut().iter_mut().find(|t| t.id == tab_id) {
+                        if let Some(tab) = win
+                            .tab_manager
+                            .tabs_mut()
+                            .iter_mut()
+                            .find(|t| t.id == tab_id)
+                        {
                             if tab.status == evergreen_core::tabs::TabStatus::Crashed {
                                 tab.status = evergreen_core::tabs::TabStatus::Active;
                             }
@@ -1350,13 +1521,17 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
             }
             BrowserEvent::TabNavigated(win_id, tab_id, url) => {
-                if url.starts_with("data:text/html") || url == "about:blank" || url == "aboutblank" {
+                if url.starts_with("data:text/html") || url == "about:blank" || url == "aboutblank"
+                {
                     return;
                 }
                 if let Some(win) = self.windows.get_mut(&win_id) {
                     win.tab_manager.update_url(tab_id, url.clone());
                     if let Some(host) = extract_host(&url) {
-                        win.tab_manager.update_favicon(tab_id, Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)));
+                        win.tab_manager.update_favicon(
+                            tab_id,
+                            Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)),
+                        );
                     }
                     win.sync_ui_state();
                     win.update_sidebar_sync(&self.cert_cache);
@@ -1364,14 +1539,26 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
             }
             BrowserEvent::HistoryChanged(win_id, tab_id, can_back, can_forward) => {
                 if let Some(win) = self.windows.get_mut(&win_id) {
-                    win.tab_manager.update_history_state(tab_id, can_back, can_forward);
+                    win.tab_manager
+                        .update_history_state(tab_id, can_back, can_forward);
                     win.sync_ui_state();
                 }
             }
             BrowserEvent::CommandDone(name, success, output) => {
-                println!("[COMMAND RESULT] {}: success={} (output: {})", name, success, output.trim());
+                println!(
+                    "[COMMAND RESULT] {}: success={} (output: {})",
+                    name,
+                    success,
+                    output.trim()
+                );
             }
-            BrowserEvent::DownloadProgress { download_id, filename, received_bytes, total_bytes, state } => {
+            BrowserEvent::DownloadProgress {
+                download_id,
+                filename,
+                received_bytes,
+                total_bytes,
+                state,
+            } => {
                 let json = serde_json::json!({
                     "download_id": download_id,
                     "filename": filename,
@@ -1379,8 +1566,14 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     "total_bytes": total_bytes,
                     "state": state,
                 });
-                let script_chrome = format!("if (window.__downloadProgress) {{ window.__downloadProgress({}); }}", json);
-                let script_sidebar = format!("if (window.__syncDownloads) {{ window.__syncDownloads({}); }}", json);
+                let script_chrome = format!(
+                    "if (window.__downloadProgress) {{ window.__downloadProgress({}); }}",
+                    json
+                );
+                let script_sidebar = format!(
+                    "if (window.__syncDownloads) {{ window.__syncDownloads({}); }}",
+                    json
+                );
                 for win in self.windows.values() {
                     if let Some(chrome) = &win.chrome_webview {
                         let _ = chrome.evaluate_script(&script_chrome);
@@ -1390,7 +1583,12 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
             }
-            BrowserEvent::PermissionPrompt { window_id, permission_id, origin, permission_kind } => {
+            BrowserEvent::PermissionPrompt {
+                window_id,
+                permission_id,
+                origin,
+                permission_kind,
+            } => {
                 if let Some(win) = self.windows.get(&window_id) {
                     if let Some(chrome) = &win.chrome_webview {
                         let json = serde_json::json!({
@@ -1406,14 +1604,19 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                 }
             }
             BrowserEvent::TabCrashed(win_id, tab_id, kind) => {
-                eprintln!("[TAB CRASH CONTAINMENT] Window {:?}, Tab {:?}, kind={}", win_id, tab_id, kind);
+                eprintln!(
+                    "[TAB CRASH CONTAINMENT] Window {:?}, Tab {:?}, kind={}",
+                    win_id, tab_id, kind
+                );
                 if let Some(win) = self.windows.get_mut(&win_id) {
                     win.tab_manager.mark_tab_crashed(tab_id);
                     win.sync_ui_state();
 
                     // If the entire browser engine process exited (kind == 0), reconstruct state from snapshot
                     if kind == 0 {
-                        eprintln!("[ENGINE PROCESS RECONSTRUCTION] Reconstructing tabs from snapshot");
+                        eprintln!(
+                            "[ENGINE PROCESS RECONSTRUCTION] Reconstructing tabs from snapshot"
+                        );
                         let snapshot = win.tab_manager.snapshot();
                         for tab in snapshot {
                             if let Some(wv) = win.tabs.get(&tab.id) {
@@ -1430,9 +1633,17 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
             }
-            BrowserEvent::ServerCertificateError { window_id, tab_id, request_uri, error_status } => {
+            BrowserEvent::ServerCertificateError {
+                window_id,
+                tab_id,
+                request_uri,
+                error_status,
+            } => {
                 let host = extract_host(&request_uri).unwrap_or_else(|| request_uri.clone());
-                eprintln!("[STRICT TLS] Certificate error {} for {} on Tab {:?}", error_status, request_uri, tab_id);
+                eprintln!(
+                    "[STRICT TLS] Certificate error {} for {} on Tab {:?}",
+                    error_status, request_uri, tab_id
+                );
                 if let Some(win) = self.windows.get(&window_id) {
                     if let Some(wv) = win.tabs.get(&tab_id) {
                         let warning_html = format!(
@@ -1445,179 +1656,230 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
             }
-            BrowserEvent::Shortcut(win_id, shortcut) => {
-                match shortcut.as_str() {
-                    "Ctrl+T" => self.handle_create_tab(win_id, None),
-                    "Ctrl+Shift+T" => {
-                        let target_url = if let Some(win) = self.windows.get_mut(&win_id) {
-                            win.tab_manager.pop_last_closed()
-                        } else {
-                            None
-                        };
-                        if let Some(url) = target_url {
-                            self.handle_create_tab(win_id, Some(url));
-                        }
+            BrowserEvent::Shortcut(win_id, shortcut) => match shortcut.as_str() {
+                "Ctrl+T" => self.handle_create_tab(win_id, None),
+                "Ctrl+Shift+T" => {
+                    let target_url = if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.tab_manager.pop_last_closed()
+                    } else {
+                        None
+                    };
+                    if let Some(url) = target_url {
+                        self.handle_create_tab(win_id, Some(url));
                     }
-                    "Ctrl+N" => {
-                        self.create_browser_window(event_loop, None);
-                    }
-                    "Ctrl+Shift+N" => {
-                        self.create_browser_window(event_loop, None);
-                    }
-                    "Ctrl+W" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                let id = active.id;
-                                self.handle_close_tab(win_id, id, event_loop);
-                            }
-                        }
-                    }
-                    "Ctrl+L" | "Ctrl+E" | "Ctrl+K" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            win.handle_focus_omnibox();
-                        }
-                    }
-                    "Ctrl+F" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(chrome) = &win.chrome_webview {
-                                let _ = chrome.evaluate_script("if (window.__toggleFindBar) { window.__toggleFindBar(); }");
-                            }
-                        }
-                    }
-                    "Ctrl+J" => {
-                        if let Some(win) = self.windows.get_mut(&win_id) {
-                            win.toggle_sidebar("downloads", &self.cert_cache, self.proxy.clone());
-                        }
-                    }
-                    "Ctrl+P" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.evaluate_script("window.print()");
-                                }
-                            }
-                        }
-                    }
-                    "Ctrl+Shift+R" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.evaluate_script("location.reload(true)");
-                                }
-                            }
-                        }
-                    }
-                    "Ctrl+R" | "F5" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.reload();
-                                }
-                            }
-                        }
-                    }
-                    "Alt+Left" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.go_back();
-                                }
-                            }
-                        }
-                    }
-                    "Alt+Right" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.go_forward();
-                                }
-                            }
-                        }
-                    }
-                    "Ctrl+Tab" => {
-                        if let Some(win) = self.windows.get_mut(&win_id) {
-                            let tabs = win.tab_manager.tabs();
-                            if tabs.len() > 1 {
-                                let current_idx = tabs.iter().position(|t| Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
-                                let next_idx = (current_idx + 1) % tabs.len();
-                                let next_id = tabs[next_idx].id;
-                                win.handle_switch_tab(next_id, &self.cert_cache);
-                            }
-                        }
-                    }
-                    "Ctrl+Shift+Tab" => {
-                        if let Some(win) = self.windows.get_mut(&win_id) {
-                            let tabs = win.tab_manager.tabs();
-                            if tabs.len() > 1 {
-                                let current_idx = tabs.iter().position(|t| Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
-                                let prev_idx = if current_idx == 0 { tabs.len() - 1 } else { current_idx - 1 };
-                                let prev_id = tabs[prev_idx].id;
-                                win.handle_switch_tab(prev_id, &self.cert_cache);
-                            }
-                        }
-                    }
-                    "Ctrl+1" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(0, &self.cert_cache); } }
-                    "Ctrl+2" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(1, &self.cert_cache); } }
-                    "Ctrl+3" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(2, &self.cert_cache); } }
-                    "Ctrl+4" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(3, &self.cert_cache); } }
-                    "Ctrl+5" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(4, &self.cert_cache); } }
-                    "Ctrl+6" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(5, &self.cert_cache); } }
-                    "Ctrl+7" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(6, &self.cert_cache); } }
-                    "Ctrl+8" => { if let Some(win) = self.windows.get_mut(&win_id) { win.switch_to_tab_index(7, &self.cert_cache); } }
-                    "Ctrl+9" => {
-                        if let Some(win) = self.windows.get_mut(&win_id) {
-                            let tabs = win.tab_manager.tabs();
-                            if !tabs.is_empty() {
-                                let last_id = tabs.last().unwrap().id;
-                                win.handle_switch_tab(last_id, &self.cert_cache);
-                            }
-                        }
-                    }
-                    "Ctrl+Plus" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            win.set_active_zoom(win.get_active_zoom() + 0.1);
-                        }
-                    }
-                    "Ctrl+Minus" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            win.set_active_zoom(win.get_active_zoom() - 0.1);
-                        }
-                    }
-                    "Ctrl+Zero" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            win.set_active_zoom(1.0);
-                        }
-                    }
-                    "Escape" => {
-                        if let Some(win) = self.windows.get_mut(&win_id) {
-                            if win.is_sidebar_open {
-                                win.close_sidebar();
-                                if let Some(c) = &win.chrome_webview {
-                                    let _ = c.evaluate_script("if (window.__syncSidebarState) window.__syncSidebarState(null);");
-                                }
-                            } else if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    let _ = wv.evaluate_script("window.stop()");
-                                }
-                            }
-                        }
-                    }
-                    "F12" => {
-                        if let Some(win) = self.windows.get(&win_id) {
-                            if let Some(active) = win.tab_manager.active_tab() {
-                                if let Some(wv) = win.tabs.get(&active.id) {
-                                    wv.open_devtools();
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
                 }
-            }
+                "Ctrl+N" => {
+                    self.create_browser_window(event_loop, None);
+                }
+                "Ctrl+Shift+N" => {
+                    self.create_browser_window(event_loop, None);
+                }
+                "Ctrl+W" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            let id = active.id;
+                            self.handle_close_tab(win_id, id, event_loop);
+                        }
+                    }
+                }
+                "Ctrl+L" | "Ctrl+E" | "Ctrl+K" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        win.handle_focus_omnibox();
+                    }
+                }
+                "Ctrl+F" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(chrome) = &win.chrome_webview {
+                            let _ = chrome.evaluate_script(
+                                "if (window.__toggleFindBar) { window.__toggleFindBar(); }",
+                            );
+                        }
+                    }
+                }
+                "Ctrl+J" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.toggle_sidebar("downloads", &self.cert_cache, self.proxy.clone());
+                    }
+                }
+                "Ctrl+P" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.evaluate_script("window.print()");
+                            }
+                        }
+                    }
+                }
+                "Ctrl+Shift+R" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.evaluate_script("location.reload(true)");
+                            }
+                        }
+                    }
+                }
+                "Ctrl+R" | "F5" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.reload();
+                            }
+                        }
+                    }
+                }
+                "Alt+Left" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.go_back();
+                            }
+                        }
+                    }
+                }
+                "Alt+Right" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.go_forward();
+                            }
+                        }
+                    }
+                }
+                "Ctrl+Tab" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        let tabs = win.tab_manager.tabs();
+                        if tabs.len() > 1 {
+                            let current_idx = tabs
+                                .iter()
+                                .position(|t| {
+                                    Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)
+                                })
+                                .unwrap_or(0);
+                            let next_idx = (current_idx + 1) % tabs.len();
+                            let next_id = tabs[next_idx].id;
+                            win.handle_switch_tab(next_id, &self.cert_cache);
+                        }
+                    }
+                }
+                "Ctrl+Shift+Tab" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        let tabs = win.tab_manager.tabs();
+                        if tabs.len() > 1 {
+                            let current_idx = tabs
+                                .iter()
+                                .position(|t| {
+                                    Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)
+                                })
+                                .unwrap_or(0);
+                            let prev_idx = if current_idx == 0 {
+                                tabs.len() - 1
+                            } else {
+                                current_idx - 1
+                            };
+                            let prev_id = tabs[prev_idx].id;
+                            win.handle_switch_tab(prev_id, &self.cert_cache);
+                        }
+                    }
+                }
+                "Ctrl+1" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(0, &self.cert_cache);
+                    }
+                }
+                "Ctrl+2" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(1, &self.cert_cache);
+                    }
+                }
+                "Ctrl+3" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(2, &self.cert_cache);
+                    }
+                }
+                "Ctrl+4" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(3, &self.cert_cache);
+                    }
+                }
+                "Ctrl+5" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(4, &self.cert_cache);
+                    }
+                }
+                "Ctrl+6" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(5, &self.cert_cache);
+                    }
+                }
+                "Ctrl+7" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(6, &self.cert_cache);
+                    }
+                }
+                "Ctrl+8" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        win.switch_to_tab_index(7, &self.cert_cache);
+                    }
+                }
+                "Ctrl+9" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        let tabs = win.tab_manager.tabs();
+                        if !tabs.is_empty() {
+                            let last_id = tabs.last().unwrap().id;
+                            win.handle_switch_tab(last_id, &self.cert_cache);
+                        }
+                    }
+                }
+                "Ctrl+Plus" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        win.set_active_zoom(win.get_active_zoom() + 0.1);
+                    }
+                }
+                "Ctrl+Minus" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        win.set_active_zoom(win.get_active_zoom() - 0.1);
+                    }
+                }
+                "Ctrl+Zero" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        win.set_active_zoom(1.0);
+                    }
+                }
+                "Escape" => {
+                    if let Some(win) = self.windows.get_mut(&win_id) {
+                        if win.is_sidebar_open {
+                            win.close_sidebar();
+                            if let Some(c) = &win.chrome_webview {
+                                let _ = c.evaluate_script("if (window.__syncSidebarState) window.__syncSidebarState(null);");
+                            }
+                        } else if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                let _ = wv.evaluate_script("window.stop()");
+                            }
+                        }
+                    }
+                }
+                "F12" => {
+                    if let Some(win) = self.windows.get(&win_id) {
+                        if let Some(active) = win.tab_manager.active_tab() {
+                            if let Some(wv) = win.tabs.get(&active.id) {
+                                wv.open_devtools();
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
         }
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
         match event {
             WindowEvent::CloseRequested => {
                 self.windows.remove(&window_id);
@@ -1653,7 +1915,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             }
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("t") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("t") && self.modifiers.control_key() =>
+                    {
                         if self.modifiers.shift_key() {
                             let target_url = if let Some(win) = self.windows.get_mut(&window_id) {
                                 win.tab_manager.pop_last_closed()
@@ -1667,10 +1931,14 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             self.handle_create_tab(window_id, None);
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("n") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("n") && self.modifiers.control_key() =>
+                    {
                         self.create_browser_window(event_loop, None);
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("w") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("w") && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             if let Some(active) = win.tab_manager.active_tab() {
                                 let id = active.id;
@@ -1678,24 +1946,37 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             }
                         }
                     }
-                    Key::Character(ref s) if (s.eq_ignore_ascii_case("l") || s.eq_ignore_ascii_case("e") || s.eq_ignore_ascii_case("k")) && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if (s.eq_ignore_ascii_case("l")
+                            || s.eq_ignore_ascii_case("e")
+                            || s.eq_ignore_ascii_case("k"))
+                            && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             win.handle_focus_omnibox();
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("f") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("f") && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             if let Some(chrome) = &win.chrome_webview {
-                                let _ = chrome.evaluate_script("if (window.__toggleFindBar) { window.__toggleFindBar(); }");
+                                let _ = chrome.evaluate_script(
+                                    "if (window.__toggleFindBar) { window.__toggleFindBar(); }",
+                                );
                             }
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("j") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("j") && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get_mut(&window_id) {
                             win.toggle_sidebar("downloads", &self.cert_cache, self.proxy.clone());
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("p") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("p") && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             if let Some(active) = win.tab_manager.active_tab() {
                                 if let Some(wv) = win.tabs.get(&active.id) {
@@ -1704,7 +1985,9 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             }
                         }
                     }
-                    Key::Character(ref s) if s.eq_ignore_ascii_case("r") && self.modifiers.control_key() => {
+                    Key::Character(ref s)
+                        if s.eq_ignore_ascii_case("r") && self.modifiers.control_key() =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             if let Some(active) = win.tab_manager.active_tab() {
                                 if let Some(wv) = win.tabs.get(&active.id) {
@@ -1746,7 +2029,11 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             }
                         }
                     }
-                    Key::Character(ref s) if self.modifiers.control_key() && s.len() == 1 && s.chars().next().is_some_and(|c| c.is_ascii_digit()) => {
+                    Key::Character(ref s)
+                        if self.modifiers.control_key()
+                            && s.len() == 1
+                            && s.chars().next().is_some_and(|c| c.is_ascii_digit()) =>
+                    {
                         let digit = s.chars().next().unwrap().to_digit(10).unwrap();
                         if let Some(win) = self.windows.get_mut(&window_id) {
                             if (1..=8).contains(&digit) {
@@ -1760,12 +2047,16 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                             }
                         }
                     }
-                    Key::Character(ref s) if self.modifiers.control_key() && (s == "+" || s == "=") => {
+                    Key::Character(ref s)
+                        if self.modifiers.control_key() && (s == "+" || s == "=") =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             win.set_active_zoom(win.get_active_zoom() + 0.1);
                         }
                     }
-                    Key::Character(ref s) if self.modifiers.control_key() && (s == "-" || s == "_") => {
+                    Key::Character(ref s)
+                        if self.modifiers.control_key() && (s == "-" || s == "_") =>
+                    {
                         if let Some(win) = self.windows.get(&window_id) {
                             win.set_active_zoom(win.get_active_zoom() - 0.1);
                         }
@@ -1797,9 +2088,18 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                         if let Some(win) = self.windows.get_mut(&window_id) {
                             let tabs = win.tab_manager.tabs();
                             if tabs.len() > 1 {
-                                let current_idx = tabs.iter().position(|t| Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)).unwrap_or(0);
+                                let current_idx = tabs
+                                    .iter()
+                                    .position(|t| {
+                                        Some(t.id) == win.tab_manager.active_tab().map(|a| a.id)
+                                    })
+                                    .unwrap_or(0);
                                 if self.modifiers.shift_key() {
-                                    let prev_idx = if current_idx == 0 { tabs.len() - 1 } else { current_idx - 1 };
+                                    let prev_idx = if current_idx == 0 {
+                                        tabs.len() - 1
+                                    } else {
+                                        current_idx - 1
+                                    };
                                     let prev_id = tabs[prev_idx].id;
                                     win.handle_switch_tab(prev_id, &self.cert_cache);
                                 } else {
@@ -1869,7 +2169,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv2_data_dir);
 
     if evergreen_core::env::is_portable_mode(&exe_dir, &args) {
-        println!("[PORTABLE MODE] Operating with zero system residue at: {:?}", data_dir);
+        println!(
+            "[PORTABLE MODE] Operating with zero system residue at: {:?}",
+            data_dir
+        );
     }
 
     // 3. Preflight runtime check

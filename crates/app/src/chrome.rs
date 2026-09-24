@@ -31,7 +31,6 @@ pub fn create_bounds(x: f64, y: f64, width: f64, height: f64) -> Rect {
 
 pub use evergreen_core::tabs::normalize_url;
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,13 +39,31 @@ mod tests {
     fn test_normalize_url() {
         let template = "https://duckduckgo.com/?q=%s";
 
-        assert_eq!(normalize_url("about:blank", template).unwrap(), "about:blank");
+        assert_eq!(
+            normalize_url("about:blank", template).unwrap(),
+            "about:blank"
+        );
         assert_eq!(normalize_url("", template).unwrap(), "evergreen://newtab");
-        assert_eq!(normalize_url("about:newtab", template).unwrap(), "evergreen://newtab");
-        assert_eq!(normalize_url("about:home", template).unwrap(), "evergreen://newtab");
-        assert_eq!(normalize_url("about:settings", template).unwrap(), "evergreen://settings");
-        assert_eq!(normalize_url("evergreen://settings", template).unwrap(), "evergreen://settings");
-        assert_eq!(normalize_url("evergreen://newtab", template).unwrap(), "evergreen://newtab");
+        assert_eq!(
+            normalize_url("about:newtab", template).unwrap(),
+            "evergreen://newtab"
+        );
+        assert_eq!(
+            normalize_url("about:home", template).unwrap(),
+            "evergreen://newtab"
+        );
+        assert_eq!(
+            normalize_url("about:settings", template).unwrap(),
+            "evergreen://settings"
+        );
+        assert_eq!(
+            normalize_url("evergreen://settings", template).unwrap(),
+            "evergreen://settings"
+        );
+        assert_eq!(
+            normalize_url("evergreen://newtab", template).unwrap(),
+            "evergreen://newtab"
+        );
         assert_eq!(
             normalize_url("https://example.com", template).unwrap(),
             "https://example.com"

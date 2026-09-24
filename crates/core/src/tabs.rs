@@ -338,5 +338,3 @@ pub fn url_encode(input: &str) -> String {
     }
     result
 }
-
-

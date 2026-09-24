@@ -4,9 +4,9 @@
 
 use evergreen_core::ipc::SecurityInfo;
 use std::collections::HashMap;
-use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -35,7 +35,10 @@ impl CertificateCache {
 
     /// Query or return cached certificate info for a host or URL
     pub fn query_or_default(&self, raw_url: &str) -> SecurityInfo {
-        if raw_url.starts_with("evergreen://") || raw_url == "about:blank" || raw_url.starts_with("data:text/html") {
+        if raw_url.starts_with("evergreen://")
+            || raw_url == "about:blank"
+            || raw_url.starts_with("data:text/html")
+        {
             return SecurityInfo {
                 host: if raw_url.starts_with("evergreen://") {
                     raw_url.to_string()
@@ -76,16 +79,56 @@ impl CertificateCache {
         let initial_info = SecurityInfo {
             host: host.clone(),
             is_secure: is_https,
-            protocol: if is_https { "TLS 1.3 (TCP 443)".to_string() } else { "HTTP Insecure (TCP 80)".to_string() },
-            certificate_status: if is_https { "Valid / Verified (Schannel)".to_string() } else { "Not Secure (Unencrypted)".to_string() },
-            cipher: if is_https { "TLS_AES_256_GCM_SHA384 (256-bit)".to_string() } else { "None (Plaintext)".to_string() },
-            subject: if is_https { format!("CN={}", host) } else { "None".to_string() },
-            issuer: if is_https { "Verified System Certificate Authority".to_string() } else { "None".to_string() },
-            valid_from: if is_https { "Valid".to_string() } else { "N/A".to_string() },
-            valid_to: if is_https { "Valid".to_string() } else { "N/A".to_string() },
-            thumbprint: if is_https { "Acquiring...".to_string() } else { "None".to_string() },
-            serial_number: if is_https { "Active".to_string() } else { "None".to_string() },
-            signature_algorithm: if is_https { "sha256ECDSA / sha256RSA".to_string() } else { "None".to_string() },
+            protocol: if is_https {
+                "TLS 1.3 (TCP 443)".to_string()
+            } else {
+                "HTTP Insecure (TCP 80)".to_string()
+            },
+            certificate_status: if is_https {
+                "Valid / Verified (Schannel)".to_string()
+            } else {
+                "Not Secure (Unencrypted)".to_string()
+            },
+            cipher: if is_https {
+                "TLS_AES_256_GCM_SHA384 (256-bit)".to_string()
+            } else {
+                "None (Plaintext)".to_string()
+            },
+            subject: if is_https {
+                format!("CN={}", host)
+            } else {
+                "None".to_string()
+            },
+            issuer: if is_https {
+                "Verified System Certificate Authority".to_string()
+            } else {
+                "None".to_string()
+            },
+            valid_from: if is_https {
+                "Valid".to_string()
+            } else {
+                "N/A".to_string()
+            },
+            valid_to: if is_https {
+                "Valid".to_string()
+            } else {
+                "N/A".to_string()
+            },
+            thumbprint: if is_https {
+                "Acquiring...".to_string()
+            } else {
+                "None".to_string()
+            },
+            serial_number: if is_https {
+                "Active".to_string()
+            } else {
+                "None".to_string()
+            },
+            signature_algorithm: if is_https {
+                "sha256ECDSA / sha256RSA".to_string()
+            } else {
+                "None".to_string()
+            },
         };
 
         self.insert(host.clone(), initial_info.clone());
@@ -120,7 +163,14 @@ pub fn fetch_live_certificate(host: &str) -> Option<SecurityInfo> {
     );
 
     let mut cmd = Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        &script,
+    ]);
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
@@ -174,7 +224,13 @@ pub fn open_native_certificate_dialog(host: &str) {
         );
 
         let mut cmd = Command::new("powershell");
-        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 

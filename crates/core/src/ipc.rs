@@ -8,27 +8,42 @@ pub enum UiToHostMessage {
     /// Emitted when the chrome UI has finished loading and is ready for initial state
     ChromeReady,
     /// Request creating a new tab
-    CreateTab { url: Option<String> },
+    CreateTab {
+        url: Option<String>,
+    },
     /// Request opening a new browser window
     OpenNewWindow,
     /// Switch active tab
-    SwitchTab { id: TabId },
+    SwitchTab {
+        id: TabId,
+    },
     /// Close an existing tab
-    CloseTab { id: TabId },
+    CloseTab {
+        id: TabId,
+    },
     /// Navigate active tab to URL or search query
-    Navigate { url: String },
+    Navigate {
+        url: String,
+    },
     /// Browser navigation controls
     GoBack,
     GoForward,
     Reload,
-    ReloadTab { tab_id: TabId },
+    ReloadTab {
+        tab_id: TabId,
+    },
     Stop,
     /// Open DevTools for current tab
     OpenDevTools,
     /// Open the native 3-dot popup menu at given coordinates
-    OpenMenu { x: f64, y: f64 },
+    OpenMenu {
+        x: f64,
+        y: f64,
+    },
     /// Notify host that HTML 3-dot menu was opened or closed (for dynamic height expansion)
-    MenuToggled { open: bool },
+    MenuToggled {
+        open: bool,
+    },
     /// Toggle the WinUI 3 slide-out sidebar in Menu mode
     ToggleMenuPanel,
     /// Toggle the WinUI 3 slide-out sidebar in Security/Certificate mode
@@ -36,12 +51,20 @@ pub enum UiToHostMessage {
     /// Request closing the sidebar panel
     CloseSidebar,
     /// Open the native Windows certificate dialog for the given host
-    OpenCertificateDialog { host: String },
+    OpenCertificateDialog {
+        host: String,
+    },
     /// Real-time client-side lifecycle navigation event (e.g. bfcache, popstate, pushState)
-    PageNavigated { url: String, title: String },
+    PageNavigated {
+        url: String,
+        title: String,
+    },
     /// Tab manipulation
     /// Tab manipulation
-    ReorderTab { from_index: usize, to_index: usize },
+    ReorderTab {
+        from_index: usize,
+        to_index: usize,
+    },
     DetachTabToNewWindow {
         tab_id: TabId,
         #[serde(default)]
@@ -50,23 +73,37 @@ pub enum UiToHostMessage {
         screen_y: Option<f64>,
     },
     /// Zoom actions
-    SetZoom { factor: f64 },
+    SetZoom {
+        factor: f64,
+    },
     ZoomIn,
     ZoomOut,
     ZoomReset,
     /// Find in page
     OpenFindInPage,
-    FindInPage { query: String, forward: bool },
+    FindInPage {
+        query: String,
+        forward: bool,
+    },
     CloseFindInPage,
     /// Downloads
     OpenDownloads,
     ToggleDownloadsSidebar,
-    DownloadConfirm { download_id: u64, accept: bool, save_path: Option<String> },
-    CancelDownload { download_id: u64 },
+    DownloadConfirm {
+        download_id: u64,
+        accept: bool,
+        save_path: Option<String>,
+    },
+    CancelDownload {
+        download_id: u64,
+    },
     /// Site permissions
     OpenPermissionPrompt,
     ClosePermissionPrompt,
-    PermissionResponse { permission_id: u64, allow: bool },
+    PermissionResponse {
+        permission_id: u64,
+        allow: bool,
+    },
     /// Link preview
     TriggerLinkPreview {
         url: String,
@@ -74,15 +111,26 @@ pub enum UiToHostMessage {
         peek: bool,
     },
     /// Find in page result reported from active webview
-    FindResult { current: usize, total: usize },
+    FindResult {
+        current: usize,
+        total: usize,
+    },
     /// Settings actions
     OpenSettings,
-    SetSearchEngine { engine: String },
-    SaveSettings { settings_json: String },
+    SetSearchEngine {
+        engine: String,
+    },
+    SaveSettings {
+        settings_json: String,
+    },
     RunEngineUpdate,
     RunForkUpdate,
     /// User explicit bypass of an untrusted TLS/SSL certificate
-    BypassCertificateError { tab_id: TabId, host: String, url: String },
+    BypassCertificateError {
+        tab_id: TabId,
+        host: String,
+        url: String,
+    },
 }
 
 /// Security and certificate status for the active origin.
@@ -145,9 +193,7 @@ pub enum HostToUiMessage {
         is_loading: bool,
     },
     /// Tab encountered a render crash
-    TabCrashed {
-        tab_id: TabId,
-    },
+    TabCrashed { tab_id: TabId },
     /// Status message or engine update output
     CommandOutput {
         command: String,
@@ -160,18 +206,11 @@ pub enum HostToUiMessage {
         is_update_available: bool,
     },
     /// Default search engine sync
-    SearchEngineSync {
-        engine: String,
-    },
+    SearchEngineSync { engine: String },
     /// Zoom level sync
-    ZoomSync {
-        factor: f64,
-    },
+    ZoomSync { factor: f64 },
     /// Find in page search results
-    FindResult {
-        current: usize,
-        total: usize,
-    },
+    FindResult { current: usize, total: usize },
     /// Download confirmation prompt
     DownloadPrompt {
         download_id: u64,
@@ -193,8 +232,5 @@ pub enum HostToUiMessage {
         permission_kind: String,
     },
     /// Link preview result
-    LinkPreviewReady {
-        url: String,
-        title: String,
-    },
+    LinkPreviewReady { url: String, title: String },
 }

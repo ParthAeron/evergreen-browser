@@ -5,10 +5,10 @@
 
 mod installer_ui;
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -33,9 +33,15 @@ const ICON_RGBA: &[u8] = include_bytes!("../../app/ui/icon_64.rgba");
 
 fn get_install_directory() -> PathBuf {
     if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
-        PathBuf::from(local_appdata).join("Programs").join("EvergreenBrowser")
+        PathBuf::from(local_appdata)
+            .join("Programs")
+            .join("EvergreenBrowser")
     } else if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        PathBuf::from(userprofile).join("AppData").join("Local").join("Programs").join("EvergreenBrowser")
+        PathBuf::from(userprofile)
+            .join("AppData")
+            .join("Local")
+            .join("Programs")
+            .join("EvergreenBrowser")
     } else {
         PathBuf::from("EvergreenBrowser")
     }
@@ -43,12 +49,14 @@ fn get_install_directory() -> PathBuf {
 
 fn get_start_menu_shortcut_path() -> Option<PathBuf> {
     if let Ok(appdata) = std::env::var("APPDATA") {
-        Some(PathBuf::from(appdata)
-            .join("Microsoft")
-            .join("Windows")
-            .join("Start Menu")
-            .join("Programs")
-            .join(format!("{}.lnk", APP_NAME)))
+        Some(
+            PathBuf::from(appdata)
+                .join("Microsoft")
+                .join("Windows")
+                .join("Start Menu")
+                .join("Programs")
+                .join(format!("{}.lnk", APP_NAME)),
+        )
     } else {
         None
     }
@@ -56,13 +64,21 @@ fn get_start_menu_shortcut_path() -> Option<PathBuf> {
 
 fn get_desktop_shortcut_path() -> Option<PathBuf> {
     if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        Some(PathBuf::from(userprofile).join("Desktop").join(format!("{}.lnk", APP_NAME)))
+        Some(
+            PathBuf::from(userprofile)
+                .join("Desktop")
+                .join(format!("{}.lnk", APP_NAME)),
+        )
     } else {
         None
     }
 }
 
-fn create_shortcut(target_exe: &Path, shortcut_path: &Path, icon_path: &Path) -> Result<(), String> {
+fn create_shortcut(
+    target_exe: &Path,
+    shortcut_path: &Path,
+    icon_path: &Path,
+) -> Result<(), String> {
     if let Some(parent) = shortcut_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -107,12 +123,18 @@ fn register_uninstall_entry(install_dir: &Path, uninstall_exe: &Path) -> Result<
          Set-ItemProperty -Path 'HKCU:\\{}' -Name 'NoModify' -Value 1 -Type DWord; \
          Set-ItemProperty -Path 'HKCU:\\{}' -Name 'NoRepair' -Value 1 -Type DWord",
         UNINSTALL_KEY,
-        UNINSTALL_KEY, APP_NAME,
-        UNINSTALL_KEY, APP_VERSION,
-        UNINSTALL_KEY, PUBLISHER,
-        UNINSTALL_KEY, display_icon.replace('\'', "''"),
-        UNINSTALL_KEY, uninst_cmd.replace('\'', "''"),
-        UNINSTALL_KEY, install_dir.display().to_string().replace('\'', "''"),
+        UNINSTALL_KEY,
+        APP_NAME,
+        UNINSTALL_KEY,
+        APP_VERSION,
+        UNINSTALL_KEY,
+        PUBLISHER,
+        UNINSTALL_KEY,
+        display_icon.replace('\'', "''"),
+        UNINSTALL_KEY,
+        uninst_cmd.replace('\'', "''"),
+        UNINSTALL_KEY,
+        install_dir.display().to_string().replace('\'', "''"),
         UNINSTALL_KEY,
         UNINSTALL_KEY
     );
@@ -163,7 +185,11 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
         }
 
         let attrs = WindowAttributes::default()
-            .with_title(if self.is_uninstall { "Uninstall Evergreen Browser" } else { "Evergreen Browser Setup" })
+            .with_title(if self.is_uninstall {
+                "Uninstall Evergreen Browser"
+            } else {
+                "Evergreen Browser Setup"
+            })
             .with_inner_size(LogicalSize::new(580.0, 500.0))
             .with_resizable(false)
             .with_theme(Some(winit::window::Theme::Dark));
@@ -184,7 +210,10 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
         };
 
         // Center on screen
-        if let Some(monitor) = window.primary_monitor().or_else(|| window.available_monitors().next()) {
+        if let Some(monitor) = window
+            .primary_monitor()
+            .or_else(|| window.available_monitors().next())
+        {
             let m_size = monitor.size();
             let scale = monitor.scale_factor();
             let w_phys = (580.0 * scale) as u32;
@@ -211,12 +240,19 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
                         "cancel" => {
                             let _ = proxy.send_event(InstallerEvent::Exit);
                         }
-                        "accept" if !is_uninstall_mode && !is_installing.swap(true, Ordering::SeqCst) => {
+                        "accept"
+                            if !is_uninstall_mode
+                                && !is_installing.swap(true, Ordering::SeqCst) =>
+                        {
                             let create_desktop = val["desktop"].as_bool().unwrap_or(true);
                             let create_start_menu = val["start_menu"].as_bool().unwrap_or(true);
                             let worker_proxy = proxy.clone();
                             std::thread::spawn(move || {
-                                run_installer_worker(create_desktop, create_start_menu, worker_proxy);
+                                run_installer_worker(
+                                    create_desktop,
+                                    create_start_menu,
+                                    worker_proxy,
+                                );
                             });
                         }
                         "finish" => {
@@ -230,7 +266,9 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
                             }
                             let _ = proxy.send_event(InstallerEvent::Exit);
                         }
-                        "start_uninstall" if is_uninstall_mode && !is_installing.swap(true, Ordering::SeqCst) => {
+                        "start_uninstall"
+                            if is_uninstall_mode && !is_installing.swap(true, Ordering::SeqCst) =>
+                        {
                             let remove_data = val["remove_data"].as_bool().unwrap_or(false);
                             let worker_proxy = proxy.clone();
                             std::thread::spawn(move || {
@@ -245,7 +283,9 @@ impl ApplicationHandler<InstallerEvent> for InstallerApp {
         match webview_builder.build(&*window) {
             Ok(wv) => {
                 if self.is_uninstall {
-                    let _ = wv.evaluate_script("if (window.initUninstallMode) { window.initUninstallMode(); }");
+                    let _ = wv.evaluate_script(
+                        "if (window.initUninstallMode) { window.initUninstallMode(); }",
+                    );
                 }
                 self.webview = Some(wv);
                 self.window = Some(window);
@@ -424,7 +464,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
         .unwrap_or_default();
-    let is_uninstall = args.iter().any(|a| a == "--uninstall") || cur_exe_name.contains("uninstall");
+    let is_uninstall =
+        args.iter().any(|a| a == "--uninstall") || cur_exe_name.contains("uninstall");
 
     // Preflight WebView2 Runtime inspection
     if evergreen_core::env::detect_webview2_runtime().is_none() {

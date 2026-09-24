@@ -216,31 +216,49 @@ impl Settings {
             for (k, v) in obj {
                 match k.as_str() {
                     "search_engine" => {
-                        if let Some(s) = v.as_str() { self.search_engine = s.to_string(); }
+                        if let Some(s) = v.as_str() {
+                            self.search_engine = s.to_string();
+                        }
                     }
                     "askWhereToSave" => {
-                        if let Some(b) = v.as_bool() { self.downloads.ask_where_to_save = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.downloads.ask_where_to_save = b;
+                        }
                     }
                     "showProgressToolbar" => {
-                        if let Some(b) = v.as_bool() { self.downloads.show_progress_toolbar = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.downloads.show_progress_toolbar = b;
+                        }
                     }
                     "tabReordering" => {
-                        if let Some(b) = v.as_bool() { self.tabs.enable_tab_reordering = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.tabs.enable_tab_reordering = b;
+                        }
                     }
                     "tabTearoff" => {
-                        if let Some(b) = v.as_bool() { self.tabs.enable_tab_tearoff = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.tabs.enable_tab_tearoff = b;
+                        }
                     }
                     "default_zoom_level" => {
-                        if let Some(f) = v.as_f64() { self.appearance.default_zoom_level = f; }
+                        if let Some(f) = v.as_f64() {
+                            self.appearance.default_zoom_level = f;
+                        }
                     }
                     "showZoomBadge" => {
-                        if let Some(b) = v.as_bool() { self.appearance.show_zoom_badge = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.appearance.show_zoom_badge = b;
+                        }
                     }
                     "enableLinkPreview" => {
-                        if let Some(b) = v.as_bool() { self.appearance.enable_link_preview = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.appearance.enable_link_preview = b;
+                        }
                     }
                     "showStatusPreview" => {
-                        if let Some(b) = v.as_bool() { self.appearance.show_status_preview = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.appearance.show_status_preview = b;
+                        }
                     }
                     "permissions" => {
                         if let Some(p_obj) = v.as_object() {
@@ -253,50 +271,77 @@ impl Settings {
                             if let Some(mic) = p_obj.get("microphone").and_then(|x| x.as_str()) {
                                 self.permissions.microphone = mic.to_string();
                             }
-                            if let Some(notif) = p_obj.get("notifications").and_then(|x| x.as_str()) {
+                            if let Some(notif) = p_obj.get("notifications").and_then(|x| x.as_str())
+                            {
                                 self.permissions.notifications = notif.to_string();
                             }
                         }
                     }
                     "features" => {
                         if let Some(f_obj) = v.as_object() {
-                            if let Some(b) = f_obj.get("enable_find_in_page").and_then(|x| x.as_bool()) {
+                            if let Some(b) =
+                                f_obj.get("enable_find_in_page").and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_find_in_page = b;
                             }
-                            if let Some(b) = f_obj.get("enable_downloads_manager").and_then(|x| x.as_bool()) {
+                            if let Some(b) = f_obj
+                                .get("enable_downloads_manager")
+                                .and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_downloads_manager = b;
                             }
-                            if let Some(b) = f_obj.get("enable_link_preview").and_then(|x| x.as_bool()) {
+                            if let Some(b) =
+                                f_obj.get("enable_link_preview").and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_link_preview = b;
                             }
-                            if let Some(b) = f_obj.get("enable_tab_gestures").and_then(|x| x.as_bool()) {
+                            if let Some(b) =
+                                f_obj.get("enable_tab_gestures").and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_tab_gestures = b;
                             }
-                            if let Some(b) = f_obj.get("enable_zoom_controls").and_then(|x| x.as_bool()) {
+                            if let Some(b) =
+                                f_obj.get("enable_zoom_controls").and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_zoom_controls = b;
                             }
-                            if let Some(b) = f_obj.get("enable_permissions_prompt").and_then(|x| x.as_bool()) {
+                            if let Some(b) = f_obj
+                                .get("enable_permissions_prompt")
+                                .and_then(|x| x.as_bool())
+                            {
                                 self.features.enable_permissions_prompt = b;
                             }
                         }
                     }
                     "enable_find_in_page" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_find_in_page = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_find_in_page = b;
+                        }
                     }
                     "enable_downloads_manager" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_downloads_manager = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_downloads_manager = b;
+                        }
                     }
                     "enable_link_preview" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_link_preview = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_link_preview = b;
+                        }
                     }
                     "enable_tab_gestures" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_tab_gestures = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_tab_gestures = b;
+                        }
                     }
                     "enable_zoom_controls" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_zoom_controls = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_zoom_controls = b;
+                        }
                     }
                     "enable_permissions_prompt" => {
-                        if let Some(b) = v.as_bool() { self.features.enable_permissions_prompt = b; }
+                        if let Some(b) = v.as_bool() {
+                            self.features.enable_permissions_prompt = b;
+                        }
                     }
                     _ => {}
                 }

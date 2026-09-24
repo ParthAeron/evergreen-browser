@@ -70,8 +70,14 @@ fn test_tab_manager_pop_last_closed_lifo_and_skips_blank() {
     manager.close_tab(id_site2);
 
     // Pop should return site2 first (LIFO), then site1, then None (about:blank skipped)
-    assert_eq!(manager.pop_last_closed(), Some("https://second.com".to_string()));
-    assert_eq!(manager.pop_last_closed(), Some("https://first.com".to_string()));
+    assert_eq!(
+        manager.pop_last_closed(),
+        Some("https://second.com".to_string())
+    );
+    assert_eq!(
+        manager.pop_last_closed(),
+        Some("https://first.com".to_string())
+    );
     assert_eq!(manager.pop_last_closed(), None);
 }
 
@@ -79,12 +85,16 @@ fn test_tab_manager_pop_last_closed_lifo_and_skips_blank() {
 fn test_ipc_serde_ui_to_host_all_variants() {
     let variants = vec![
         UiToHostMessage::ChromeReady,
-        UiToHostMessage::CreateTab { url: Some("https://test.com".to_string()) },
+        UiToHostMessage::CreateTab {
+            url: Some("https://test.com".to_string()),
+        },
         UiToHostMessage::CreateTab { url: None },
         UiToHostMessage::OpenNewWindow,
         UiToHostMessage::SwitchTab { id: TabId(42) },
         UiToHostMessage::CloseTab { id: TabId(7) },
-        UiToHostMessage::Navigate { url: "https://nav.com".to_string() },
+        UiToHostMessage::Navigate {
+            url: "https://nav.com".to_string(),
+        },
         UiToHostMessage::GoBack,
         UiToHostMessage::GoForward,
         UiToHostMessage::Reload,
@@ -96,38 +106,74 @@ fn test_ipc_serde_ui_to_host_all_variants() {
         UiToHostMessage::ToggleMenuPanel,
         UiToHostMessage::ToggleSecurityPanel,
         UiToHostMessage::CloseSidebar,
-        UiToHostMessage::OpenCertificateDialog { host: "github.com".to_string() },
-        UiToHostMessage::PageNavigated { url: "https://test.com".to_string(), title: "Test".to_string() },
-        UiToHostMessage::ReorderTab { from_index: 0, to_index: 2 },
-        UiToHostMessage::DetachTabToNewWindow { tab_id: TabId(1), screen_x: Some(100.0), screen_y: Some(100.0) },
+        UiToHostMessage::OpenCertificateDialog {
+            host: "github.com".to_string(),
+        },
+        UiToHostMessage::PageNavigated {
+            url: "https://test.com".to_string(),
+            title: "Test".to_string(),
+        },
+        UiToHostMessage::ReorderTab {
+            from_index: 0,
+            to_index: 2,
+        },
+        UiToHostMessage::DetachTabToNewWindow {
+            tab_id: TabId(1),
+            screen_x: Some(100.0),
+            screen_y: Some(100.0),
+        },
         UiToHostMessage::OpenFindInPage,
         UiToHostMessage::SetZoom { factor: 1.25 },
         UiToHostMessage::ZoomIn,
         UiToHostMessage::ZoomOut,
         UiToHostMessage::ZoomReset,
-        UiToHostMessage::FindInPage { query: "rust".to_string(), forward: true },
+        UiToHostMessage::FindInPage {
+            query: "rust".to_string(),
+            forward: true,
+        },
         UiToHostMessage::CloseFindInPage,
         UiToHostMessage::OpenDownloads,
         UiToHostMessage::ToggleDownloadsSidebar,
-        UiToHostMessage::DownloadConfirm { download_id: 1, accept: true, save_path: Some("C:\\test.bin".to_string()) },
+        UiToHostMessage::DownloadConfirm {
+            download_id: 1,
+            accept: true,
+            save_path: Some("C:\\test.bin".to_string()),
+        },
         UiToHostMessage::CancelDownload { download_id: 1 },
         UiToHostMessage::OpenPermissionPrompt,
         UiToHostMessage::ClosePermissionPrompt,
-        UiToHostMessage::PermissionResponse { permission_id: 10, allow: true },
-        UiToHostMessage::TriggerLinkPreview { url: "https://preview.com".to_string(), peek: false },
-        UiToHostMessage::FindResult { current: 1, total: 5 },
+        UiToHostMessage::PermissionResponse {
+            permission_id: 10,
+            allow: true,
+        },
+        UiToHostMessage::TriggerLinkPreview {
+            url: "https://preview.com".to_string(),
+            peek: false,
+        },
+        UiToHostMessage::FindResult {
+            current: 1,
+            total: 5,
+        },
         UiToHostMessage::OpenSettings,
-        UiToHostMessage::SetSearchEngine { engine: "google".to_string() },
-        UiToHostMessage::SaveSettings { settings_json: "{}".to_string() },
+        UiToHostMessage::SetSearchEngine {
+            engine: "google".to_string(),
+        },
+        UiToHostMessage::SaveSettings {
+            settings_json: "{}".to_string(),
+        },
         UiToHostMessage::RunEngineUpdate,
         UiToHostMessage::RunForkUpdate,
-        UiToHostMessage::BypassCertificateError { tab_id: TabId(1), host: "badssl.com".to_string(), url: "https://badssl.com/".to_string() },
+        UiToHostMessage::BypassCertificateError {
+            tab_id: TabId(1),
+            host: "badssl.com".to_string(),
+            url: "https://badssl.com/".to_string(),
+        },
     ];
 
     for msg in variants {
         let serialized = serde_json::to_string(&msg).expect("Failed to serialize UiToHostMessage");
-        let deserialized: UiToHostMessage = serde_json::from_str(&serialized)
-            .expect("Failed to deserialize UiToHostMessage");
+        let deserialized: UiToHostMessage =
+            serde_json::from_str(&serialized).expect("Failed to deserialize UiToHostMessage");
         assert_eq!(msg, deserialized);
     }
 }
@@ -164,9 +210,7 @@ fn test_ipc_serde_host_to_ui_all_variants() {
             can_go_forward: false,
             is_loading: false,
         },
-        HostToUiMessage::TabCrashed {
-            tab_id: TabId(1),
-        },
+        HostToUiMessage::TabCrashed { tab_id: TabId(1) },
         HostToUiMessage::CommandOutput {
             command: "update".to_string(),
             success: true,
@@ -179,9 +223,7 @@ fn test_ipc_serde_host_to_ui_all_variants() {
         HostToUiMessage::SearchEngineSync {
             engine: "google".to_string(),
         },
-        HostToUiMessage::ZoomSync {
-            factor: 1.25,
-        },
+        HostToUiMessage::ZoomSync { factor: 1.25 },
         HostToUiMessage::FindResult {
             current: 1,
             total: 5,
@@ -211,8 +253,8 @@ fn test_ipc_serde_host_to_ui_all_variants() {
 
     for msg in variants {
         let serialized = serde_json::to_string(&msg).expect("Failed to serialize HostToUiMessage");
-        let deserialized: HostToUiMessage = serde_json::from_str(&serialized)
-            .expect("Failed to deserialize HostToUiMessage");
+        let deserialized: HostToUiMessage =
+            serde_json::from_str(&serialized).expect("Failed to deserialize HostToUiMessage");
         assert_eq!(msg, deserialized);
     }
 }
@@ -223,7 +265,10 @@ fn test_settings_default_and_roundtrip() {
     assert!(settings.privacy.ephemeral_default);
     assert_eq!(settings.performance.sleep_after_secs, 300);
     assert_eq!(settings.search_engine, "duckduckgo");
-    assert_eq!(settings.search_url_template(), "https://duckduckgo.com/?q=%s");
+    assert_eq!(
+        settings.search_url_template(),
+        "https://duckduckgo.com/?q=%s"
+    );
 
     let serialized = serde_json::to_string_pretty(&settings).expect("Serialization failed");
     let deserialized: Settings = serde_json::from_str(&serialized).expect("Deserialization failed");
@@ -232,19 +277,30 @@ fn test_settings_default_and_roundtrip() {
 
 #[test]
 fn test_search_engine_templates() {
-    let mut s = Settings::default();
-    s.search_engine = "google".to_string();
-    assert_eq!(s.search_url_template(), "https://www.google.com/search?q=%s");
+    let mut s = Settings {
+        search_engine: "google".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        s.search_url_template(),
+        "https://www.google.com/search?q=%s"
+    );
     assert_eq!(s.search_engine_display_name(), "Google");
 
     s.search_engine = "bing".to_string();
     assert_eq!(s.search_url_template(), "https://www.bing.com/search?q=%s");
 
     s.search_engine = "brave".to_string();
-    assert_eq!(s.search_url_template(), "https://search.brave.com/search?q=%s");
+    assert_eq!(
+        s.search_url_template(),
+        "https://search.brave.com/search?q=%s"
+    );
 
     s.search_engine = "ecosia".to_string();
-    assert_eq!(s.search_url_template(), "https://www.ecosia.org/search?q=%s");
+    assert_eq!(
+        s.search_url_template(),
+        "https://www.ecosia.org/search?q=%s"
+    );
 }
 
 #[test]
@@ -256,10 +312,16 @@ fn test_tab_manager_suspension_and_audio() {
     assert!(tm.tabs()[0].is_audio_playing);
 
     tm.set_tab_suspended(tab_id, true);
-    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Suspended);
+    assert_eq!(
+        tm.tabs()[0].status,
+        evergreen_core::tabs::TabStatus::Suspended
+    );
 
     tm.set_tab_suspended(tab_id, false);
-    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Inactive);
+    assert_eq!(
+        tm.tabs()[0].status,
+        evergreen_core::tabs::TabStatus::Inactive
+    );
 }
 
 #[test]
@@ -297,7 +359,10 @@ fn test_tab_manager_reorder() {
 fn test_is_process_elevated_returns_false_unelevated() {
     // Under normal user runs or developer testing, this process is not elevated.
     let elevated = is_process_elevated();
-    assert!(!elevated, "Process expected to run unelevated in standard environment");
+    assert!(
+        !elevated,
+        "Process expected to run unelevated in standard environment"
+    );
 }
 
 #[test]
@@ -390,7 +455,13 @@ fn test_plugin_registry_and_extensibility() {
 fn test_portable_mode_detection_and_data_directory() {
     use evergreen_core::env::{is_portable_mode, resolve_data_directory};
 
-    let temp_dir = std::env::temp_dir().join(format!("evergreen_test_portable_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let temp_dir = std::env::temp_dir().join(format!(
+        "evergreen_test_portable_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
     // Default: false without args
@@ -420,14 +491,20 @@ fn test_portable_mode_detection_and_data_directory() {
     let user_data_dir = temp_dir.join("user_data");
     std::fs::create_dir_all(&user_data_dir).unwrap();
     assert!(is_portable_mode(&temp_dir, &[]));
-    assert_eq!(resolve_data_directory(&temp_dir, &[]), temp_dir.join("user_data"));
+    assert_eq!(
+        resolve_data_directory(&temp_dir, &[]),
+        temp_dir.join("user_data")
+    );
     let _ = std::fs::remove_dir_all(&user_data_dir);
 
     // data directory
     let data_dir = temp_dir.join("data");
     std::fs::create_dir_all(&data_dir).unwrap();
     assert!(is_portable_mode(&temp_dir, &[]));
-    assert_eq!(resolve_data_directory(&temp_dir, &[]), temp_dir.join("data"));
+    assert_eq!(
+        resolve_data_directory(&temp_dir, &[]),
+        temp_dir.join("data")
+    );
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
@@ -438,12 +515,18 @@ fn test_tab_manager_crash_and_snapshot_restore() {
     let id1 = tm.create_tab("https://alpha.example", 100);
     let _id2 = tm.create_tab("https://beta.example", 200);
 
-    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Inactive);
+    assert_eq!(
+        tm.tabs()[0].status,
+        evergreen_core::tabs::TabStatus::Inactive
+    );
     assert_eq!(tm.tabs()[1].status, evergreen_core::tabs::TabStatus::Active);
 
     // Mark tab 1 crashed
     tm.mark_tab_crashed(id1);
-    assert_eq!(tm.tabs()[0].status, evergreen_core::tabs::TabStatus::Crashed);
+    assert_eq!(
+        tm.tabs()[0].status,
+        evergreen_core::tabs::TabStatus::Crashed
+    );
 
     // Snapshot
     let snapshot = tm.snapshot();
@@ -494,15 +577,23 @@ fn test_tab_manager_update_url_title_and_favicon() {
     let tab = tm.tabs().iter().find(|t| t.id == id).unwrap();
     assert_eq!(tab.url, "https://updated.com");
     assert_eq!(tab.title, "Updated Title");
-    assert_eq!(tab.favicon_uri, Some("https://updated.com/favicon.ico".to_string()));
+    assert_eq!(
+        tab.favicon_uri,
+        Some("https://updated.com/favicon.ico".to_string())
+    );
 }
 
 #[test]
 fn test_settings_search_url_template_fallback() {
-    let mut settings = Settings::default();
-    settings.search_engine = "unknown_engine".to_string();
+    let settings = Settings {
+        search_engine: "unknown_engine".to_string(),
+        ..Default::default()
+    };
 
-    assert_eq!(settings.search_url_template(), "https://duckduckgo.com/?q=%s");
+    assert_eq!(
+        settings.search_url_template(),
+        "https://duckduckgo.com/?q=%s"
+    );
 }
 
 #[test]
@@ -565,6 +656,3 @@ fn test_plugin_registry_feature_plugin_dynamic() {
     settings.features.enable_zoom_controls = false;
     assert_eq!(registry.enabled_plugins(&settings).len(), 0);
 }
-
-
-
