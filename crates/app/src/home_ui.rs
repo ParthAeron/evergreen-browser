@@ -183,12 +183,19 @@ pub const HOME_TEMPLATE: &str = r#"<!DOCTYPE html>
         const query = searchBox.value.trim();
         if (!query) return;
 
+        let target = '';
         if (query.startsWith('http://') || query.startsWith('https://') || query.startsWith('evergreen://')) {
-          window.location.href = query;
+          target = query;
         } else if (query.includes('.') && !query.includes(' ')) {
-          window.location.href = 'https://' + query;
+          target = 'https://' + query;
         } else {
-          window.location.href = searchTemplate.replace('%s', encodeURIComponent(query));
+          target = searchTemplate.replace('%s', encodeURIComponent(query));
+        }
+
+        if (window.ipc) {
+          window.ipc.postMessage(JSON.stringify({ action: 'Navigate', payload: { url: target } }));
+        } else {
+          window.location.href = target;
         }
       }
     });

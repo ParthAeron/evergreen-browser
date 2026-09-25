@@ -133,6 +133,7 @@ struct WindowContext {
     is_sidebar_open: bool,
     sidebar_mode: String,
     tabs: HashMap<TabId, WebView>,
+    tab_persisted: HashMap<TabId, bool>,
     window_width: f64,
     window_height: f64,
     find_bar_open: bool,
@@ -672,6 +673,7 @@ impl BrowserApp {
             is_sidebar_open: false,
             sidebar_mode: "menu".to_string(),
             tabs: HashMap::new(),
+            tab_persisted: HashMap::new(),
             window_width: win_width,
             window_height: win_height,
             find_bar_open: false,
@@ -767,6 +769,7 @@ impl BrowserApp {
         };
 
         let is_persistent = self.settings.is_site_persistent(url);
+        let settings_nav = self.settings.clone();
 
         let mut builder = WebViewBuilder::new()
             .with_bounds(bounds)
@@ -841,6 +844,13 @@ impl BrowserApp {
                         .send_event(BrowserEvent::Ipc(win_id, UiToHostMessage::OpenSettings));
                     return false;
                 }
+                if !is_persistent && settings_nav.is_site_persistent(&nav_url) {
+                    let _ = proxy_nav_interceptor.send_event(BrowserEvent::Ipc(
+                        win_id,
+                        UiToHostMessage::Navigate { url: nav_url },
+                    ));
+                    return false;
+                }
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(win_id, tab_id, nav_url));
                 true
             })
@@ -913,7 +923,9 @@ impl BrowserApp {
                 Ok(wv) => {
                     let _ = wv.set_visible(true);
                     if let Some(win_ctx) = self.windows.get_mut(&win_id) {
+                        let is_persistent = self.settings.is_site_persistent(&target_url);
                         win_ctx.tabs.insert(actual_id, wv);
+                        win_ctx.tab_persisted.insert(actual_id, is_persistent);
                         win_ctx.sync_ui_state();
                         win_ctx.update_sidebar_sync(&self.cert_cache);
                         let default_zoom = self.settings.appearance.default_zoom_level;
@@ -957,6 +969,7 @@ impl BrowserApp {
                 let _ = wv.set_visible(false);
                 drop(wv);
             }
+            win_ctx.tab_persisted.remove(&target_id);
 
             match win_ctx.tab_manager.close_tab(target_id) {
                 Some(next_active_id) => {
@@ -991,6 +1004,7 @@ impl BrowserApp {
                 let _ = wv.set_visible(false);
                 drop(wv);
             }
+            win_ctx.tab_persisted.remove(&tab_id);
             extracted
         } else {
             None
@@ -1068,9 +1082,18 @@ impl BrowserApp {
                     self.handle_open_settings(win_id);
                     return;
                 }
-                if let Some(win_ctx) = self.windows.get_mut(&win_id) {
+                let desired_persistent = self.settings.is_site_persistent(&target);
+
+                // Scope 1: inspect active tab and determine if partition transition is required
+                let tab_info = if let Some(win_ctx) = self.windows.get_mut(&win_id) {
                     if let Some(active) = win_ctx.tab_manager.active_tab() {
                         let active_id = active.id;
+                        let current_persistent = win_ctx
+                            .tab_persisted
+                            .get(&active_id)
+                            .copied()
+                            .unwrap_or(false);
+
                         win_ctx.tab_manager.update_url(active_id, target.clone());
                         if let Some(host) = extract_host(&target) {
                             win_ctx.tab_manager.update_favicon(
@@ -1078,10 +1101,56 @@ impl BrowserApp {
                                 Some(format!("https://icons.duckduckgo.com/ip3/{}.ico", host)),
                             );
                         }
-                        if let Some(wv) = win_ctx.tabs.get(&active_id) {
-                            let _ = wv.load_url(&target);
+
+                        if current_persistent == desired_persistent {
+                            if let Some(wv) = win_ctx.tabs.get(&active_id) {
+                                let _ = wv.load_url(&target);
+                            }
+                            win_ctx.sync_ui_state();
+                            None
+                        } else {
+                            Some((
+                                active_id,
+                                win_ctx.window.clone(),
+                                win_ctx.window_width,
+                                win_ctx.window_height,
+                                win_ctx.is_sidebar_open,
+                                win_ctx.current_chrome_height(),
+                            ))
                         }
-                        win_ctx.sync_ui_state();
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                // Scope 2: partition transition (ephemeral <-> persistent): recreate webview
+                if let Some((active_id, window, win_width, win_height, is_sidebar_open, chrome_h)) =
+                    tab_info
+                {
+                    match self.create_tab_webview(
+                        win_id,
+                        active_id,
+                        &target,
+                        window.as_ref(),
+                        win_width,
+                        win_height,
+                        is_sidebar_open,
+                        chrome_h,
+                    ) {
+                        Ok(new_wv) => {
+                            let _ = new_wv.set_visible(true);
+                            if let Some(win_ctx) = self.windows.get_mut(&win_id) {
+                                win_ctx.tabs.insert(active_id, new_wv);
+                                win_ctx.tab_persisted.insert(active_id, desired_persistent);
+                                win_ctx.sync_ui_state();
+                                win_ctx.update_sidebar_sync(&self.cert_cache);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to recreate tab on persistence transition: {:?}", e)
+                        }
                     }
                 }
             }
@@ -1221,12 +1290,27 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
                 UiToHostMessage::Reload => {
-                    if let Some(win) = self.windows.get(&win_id) {
+                    let reload_nav = if let Some(win) = self.windows.get(&win_id) {
                         if let Some(active) = win.tab_manager.active_tab() {
-                            if let Some(wv) = win.tabs.get(&active.id) {
-                                let _ = wv.reload();
+                            let desired = self.settings.is_site_persistent(&active.url);
+                            let current =
+                                win.tab_persisted.get(&active.id).copied().unwrap_or(false);
+                            if current != desired {
+                                Some(active.url.clone())
+                            } else {
+                                if let Some(wv) = win.tabs.get(&active.id) {
+                                    let _ = wv.reload();
+                                }
+                                None
                             }
+                        } else {
+                            None
                         }
+                    } else {
+                        None
+                    };
+                    if let Some(url) = reload_nav {
+                        self.handle_navigate(win_id, &url);
                     }
                 }
                 UiToHostMessage::Stop => {
