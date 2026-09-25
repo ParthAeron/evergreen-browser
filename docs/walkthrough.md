@@ -28,7 +28,7 @@ This starts the browser directly with debug symbols enabled.
 ```powershell
 cargo build --release -p evergreen-browser
 ```
-The compiled executable is written to `target/release/evergreen-browser.exe`. The release binary is stripped and optimized, producing an executable around 1.83 MB.
+The compiled executable is written to `target/release/evergreen-browser.exe`. The release binary is stripped and optimized, producing an executable around 2.71 MB.
 
 ---
 
@@ -171,12 +171,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 ```
 
 ### What this produces:
-- **`dist/EvergreenBrowserSetup.exe` (~3.14 MB)**: Standalone installer that embeds the release browser binary and high-DPI icon resources.
+- **`dist/EvergreenBrowserSetup.exe` (~4.04 MB)**: Standalone installer that embeds the release browser binary and high-DPI icon resources.
   - Installs to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without requiring UAC elevation.
   - Generates crisp Start Menu and Desktop shortcuts.
   - Registers in Windows Settings (`Apps` > `Installed apps`) with full uninstaller support (`--uninstall`).
   - Launches the browser immediately upon completion.
-- **`dist/evergreen-browser.exe` (~1.83 MB)**: Standalone binary for portable usage.
+- **`dist/evergreen-browser.exe` (~2.71 MB)**: Standalone binary for portable usage.
 
 ### Regenerating High-DPI Icon Assets
 If you modify `crates/app/ui/logo.png`, regenerate the 7-layer multi-resolution icon suite (16x16 to 256x256) and RGBA buffers via:

@@ -10,7 +10,7 @@
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>
     <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-22c55e.svg" alt="Windows Platform" />
-    <img src="https://img.shields.io/badge/binary%20size-1.83%20MB-blue.svg" alt="Binary Size" />
+    <img src="https://img.shields.io/badge/binary%20size-2.71%20MB-blue.svg" alt="Binary Size" />
     <img src="https://img.shields.io/badge/shell%20RAM-3.8%20MB-blue.svg" alt="Host RAM" />
     <img src="https://img.shields.io/badge/telemetry-zero-success.svg" alt="Zero Telemetry" />
   </p>
@@ -48,9 +48,9 @@ Evergreen Browser uses the **Microsoft Edge WebView2 Evergreen Runtime** already
 │    Monolithic Browsers (Chrome, Brave, Arc) │         Evergreen Browser Architecture    │
 ├─────────────────────────────────────────────┼───────────────────────────────────────────┤
 │ • Bundled Frozen Engine (~150MB - 250MB)    │ • Zero Engine Shipping (Uses OS Runtime)  │
-│ • Custom C++ / Swift / Electron UI Shell    │ • Static Rust Shell Host (1.83 MB MSVC)   │
+│ • Custom C++ / Swift / Electron UI Shell    │ • Static Rust Shell Host (2.71 MB MSVC)   │
 │ • Monolithic Browser Process (100MB+ RAM)   │ • Decoupled Host Process (3.84 MB RAM)    │
-│ • 400MB - 800MB Permanent Disk Footprint    │ • < 2 MB Permanent Disk Footprint         │
+│ • 400MB - 800MB Permanent Disk Footprint    │ • < 3 MB Permanent Disk Footprint         │
 │ • Background Telemetry & Sync Daemons       │ • Zero Telemetry, 100% Ephemeral by Def.  │
 │ • Multi-Process Compositor Tab Switching    │ • Native Win32 HWND Z-Order (0.199 ms)   │
 └─────────────────────────────────────────────┴───────────────────────────────────────────┘
@@ -97,7 +97,7 @@ Tab switching manipulates Win32 visibility flags directly (`ShowWindow(SW_SHOW)`
 - **Modular Plugin Architecture**: Extensible through the Rust `BrowserPlugin` trait in `crates/core/src/plugins.rs`. Developers can inject toolbar buttons, register custom sidebar drawers, inject content scripts, and handle typed IPC messages without altering core tab lifecycle logic.
 - **Zero-Residue Portable Mode**: Placing `portable.ini` or a `data/` folder next to `evergreen-browser.exe` redirects all profile directories, cache partitions, and `settings.json` strictly into `./data/`, making zero writes to `%APPDATA%`, `%LOCALAPPDATA%`, or the Windows Registry.
 - **Process Integrity and Keystroke Priority**: Checks user process tokens on startup via `OpenProcessToken`. Running as Administrator displays a native security warning and terminates immediately to prevent sandbox bypass. Win32 controller hooks intercept critical shortcuts (`Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Ctrl+J`, `F12`) before webpage scripts can capture or suppress them.
-- **Fluent Dark Setup Wizard & Uninstaller**: Packaged into a self-contained WebView2 setup executable (`EvergreenBrowserSetup.exe`, 3.14 MB) featuring acrylic styling, Segoe UI Variable typography, licensing acceptance gating, desktop and Start menu shortcut generation, and a matching uninstallation wizard.
+- **Fluent Dark Setup Wizard & Uninstaller**: Packaged into a self-contained WebView2 setup executable (`EvergreenBrowserSetup.exe`, 4.04 MB) featuring acrylic styling, Segoe UI Variable typography, licensing acceptance gating, desktop and Start menu shortcut generation, and a matching uninstallation wizard.
 
 ---
 
@@ -107,8 +107,8 @@ The benchmark matrix below was measured on Windows 11 x64 (MSVC release build, h
 
 | Metric / Dimension | Evergreen Browser | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) | Arc Browser (Windows) | Min Browser (Electron) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Setup Package Size** | **3.14 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB | ~180 MB | ~85 MB |
-| **Installed Disk Footprint** | **1.83 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
+| **Setup Package Size** | **4.04 MB** | ~110 MB | ~140 MB | ~115 MB | ~65 MB | ~180 MB | ~85 MB |
+| **Installed Disk Footprint** | **2.71 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
 | **Engine Delivery Model** | **OS-Shared Runtime** | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Gecko/SM | Bundled Blink/V8 | Bundled Chromium |
 | **UI Shell Framework** | **Rust (`winit` + Win32)** | C++ (Aura) | C++ (WinUI) | C++ (Aura) | C++ / XUL | Swift / WinUI 3 | JS / Electron |
 | **Host Shell Private RAM** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB | ~210 MB | ~95 MB |
@@ -153,14 +153,17 @@ For complete development examples, refer to the [Plugin Guide](docs/plugins.md) 
 ## Installation & Quickstart
 
 ### Method 1: Pre-Built Setup Installer (Recommended)
-Download and run **[`EvergreenBrowserSetup.exe`](dist/EvergreenBrowserSetup.exe)** (3.14 MB):
+Download and run **[`EvergreenBrowserSetup.exe`](dist/EvergreenBrowserSetup.exe)** (4.04 MB):
 - **Standard User Installation**: Deploys cleanly to `%LOCALAPPDATA%\Programs\EvergreenBrowser\` without requiring Administrator privileges.
 - **Guided Setup**: Verifies prerequisites, presents licensing terms, configures desktop and Start menu shortcuts, and extracts binaries with animated progress.
 - **Clean Windows Uninstallation**: Registers under Windows Settings (`Apps` > `Installed apps`) with automated uninstaller support and optional browsing data removal.
 
+> [!NOTE]
+> **Windows SmartScreen Notice**: Because Evergreen Browser is an open-source project without a paid corporate Extended Validation (EV) code signing certificate, Windows Defender SmartScreen may display an *"Unrecognized app"* prompt when opening downloaded executables. To proceed with installation, click **More info** and select **Run anyway** (or right-click the downloaded executable, open **Properties**, check **Unblock** at the bottom, and click **OK**).
+
 ### Method 2: Zero-Residue Portable Mode
 For running from external volumes or flash drives:
-1. Download standalone `evergreen-browser.exe` (1.83 MB).
+1. Download standalone `evergreen-browser.exe` (2.71 MB).
 2. Place an empty `portable.ini` file or create a `data/` folder adjacent to `evergreen-browser.exe`.
 3. Launch `evergreen-browser.exe`. All profile data, cache, and settings remain isolated inside `./data/`.
 

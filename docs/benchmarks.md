@@ -10,8 +10,8 @@ Measurements reflect standard release builds on Windows 11 x64 (MSVC toolchain, 
 
 | Benchmark Dimension | Evergreen Browser | Google Chrome (v128) | Microsoft Edge (v128) | Brave Browser (v1.69) | Mozilla Firefox (v130) | Arc Browser (Windows) | Min Browser (Electron) |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Installer / Package Size** | **3.14 MB** (Setup) / **1.83 MB** (Standalone) | ~110 MB (Setup) | ~140 MB (MSI) | ~115 MB (Setup) | ~65 MB (Stub) | ~180 MB (MSIX) | ~85 MB (Setup) |
-| **Installed Disk Footprint** | **1.83 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
+| **Installer / Package Size** | **4.04 MB** (Setup) / **2.71 MB** (Standalone) | ~110 MB (Setup) | ~140 MB (MSI) | ~115 MB (Setup) | ~65 MB (Stub) | ~180 MB (MSIX) | ~85 MB (Setup) |
+| **Installed Disk Footprint** | **2.71 MB** | ~520 MB | ~680 MB | ~560 MB | ~410 MB | ~740 MB | ~240 MB |
 | **Engine Delivery Model** | **OS-Shared Runtime** | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Blink/V8 | Bundled Gecko/SM | Bundled Blink/V8 | Bundled Chromium |
 | **UI Framework & Language** | **Rust (`winit` + Win32)** | C++ (Views / Aura) | C++ (Views / WinUI) | C++ (Views / Aura) | C++ / XUL / Rust | Swift / WinUI 3 | JS / Electron / Node |
 | **Host Shell Private RAM (Idle)** | **3.84 MB** | ~145 MB | ~160 MB | ~135 MB | ~110 MB | ~210 MB | ~95 MB |
@@ -81,7 +81,7 @@ The table below records resource utilization during an active multi-tab browsing
 
 ## 3. Detailed Benchmark Analysis
 
-### 3.1 Disk Footprint: 1.83 MB vs. 500–740 MB
+### 3.1 Disk Footprint: 2.71 MB vs. 500–740 MB
 
 - **Monolithic Browser Packaging**: Bundled distributions package the entire rendering pipeline:
   - Precompiled Blink layout engine and V8 JIT compiler (~85 MB)
@@ -91,7 +91,7 @@ The table below records resource utilization during an active multi-tab browsing
   - Widevine Content Decryption Module stubs (~10 MB)
   After installation, this footprint expands to 400 MB to 740 MB on disk.
 - **Evergreen Binary Characteristics**: Evergreen compiles as a static Rust binary via MSVC with Link-Time Optimization (`lto = true`), a single codegen unit (`codegen-units = 1`), and stripped symbols (`strip = true`).
-- **Measured Result**: The standalone release binary is **1.83 MB** (1,916,416 bytes), and the complete setup installer package is **3.14 MB** (3,296,256 bytes).
+- **Measured Result**: The standalone release binary is **2.71 MB** (2,845,696 bytes), and the complete setup installer package is **4.04 MB** (4,233,728 bytes).
 
 ### 3.2 Host Shell Memory: 3.84 MB vs. 95–210 MB
 
@@ -145,8 +145,8 @@ The table below records resource utilization during an active multi-tab browsing
 
 | Metric Category | Target Budget | Measured Result | Margin / Outcome |
 |---|:---:|:---:|:---:|
-| **Release Binary Size** | $\le$ 8.00 MB | **1.83 MB** (1,916,416 bytes) | **4.3x smaller than budget** |
-| **Setup Installer Size** | $\le$ 8.00 MB | **3.14 MB** (3,296,256 bytes) | **2.5x smaller than budget** |
+| **Release Binary Size** | $\le$ 8.00 MB | **2.71 MB** (2,845,696 bytes) | **2.9x smaller than budget** |
+| **Setup Installer Size** | $\le$ 8.00 MB | **4.04 MB** (4,233,728 bytes) | **2.0x smaller than budget** |
 | **Time to First Paint (TTFP)** | $\le$ 1,200 ms | **694 ms** | **506 ms headroom** |
 | **Total Private RAM (Single Tab)** | $\le$ 250 MB | **228.53 MB** | **21.47 MB under budget** |
 | **Host Shell Private RAM** | $\le$ 25 MB | **3.84 MB** | **6.5x under budget** |
