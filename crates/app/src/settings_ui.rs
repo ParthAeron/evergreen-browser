@@ -252,6 +252,87 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
     input:checked + .slider:before {
       transform: translateX(18px);
     }
+
+    /* Persistent Site Whitelist */
+    .whitelist-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 6px 20px 18px 20px;
+    }
+
+    .whitelist-input-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .text-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-card);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent-blue);
+      background: rgba(255, 255, 255, 0.09);
+    }
+
+    .text-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .domain-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.28);
+      color: #34d399;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .chip-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      cursor: pointer;
+      color: #94a3b8;
+      transition: color 0.15s ease, background 0.15s ease;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .chip-remove:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    .chips-empty-hint {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -575,6 +656,21 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
           <span class="val-badge">Zero Traces</span>
         </div>
       </div>
+      <div class="row" style="border-bottom: none; padding-bottom: 6px;">
+        <div class="row-info">
+          <span class="row-label">Persistent Site Whitelist</span>
+          <span class="row-desc">Whitelisted domains retain cookies and stay logged in across browser restarts</span>
+        </div>
+      </div>
+      <div class="whitelist-container">
+        <div class="whitelist-input-row">
+          <input type="text" id="newPersistentSiteInput" class="text-input" placeholder="e.g. github.com, accounts.google.com" onkeydown="if(event.key==='Enter') addPersistentSite()" />
+          <button type="button" class="btn btn-secondary" onclick="addPersistentSite()">Add Domain</button>
+        </div>
+        <div id="persistentSitesList" class="chips-container">
+          {{PERSISTENT_SITES_CHIPS}}
+        </div>
+      </div>
     </div>
 
     <div id="statusBanner" class="status-banner info">
@@ -658,6 +754,70 @@ pub const SETTINGS_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
     }
 
+    let persistentSites = {{PERSISTENT_SITES_JSON}};
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function renderPersistentSites() {
+      const container = document.getElementById('persistentSitesList');
+      if (!container) return;
+      if (!persistentSites || persistentSites.length === 0) {
+        container.innerHTML = '<span class="chips-empty-hint">No persistent domains configured. All sessions are strictly ephemeral.</span>';
+        return;
+      }
+      container.innerHTML = persistentSites.map(site => `
+        <div class="domain-chip" data-domain="${escapeHtml(site)}">
+          <span>${escapeHtml(site)}</span>
+          <span class="chip-remove" onclick="removePersistentSite('${escapeHtml(site)}')">&times;</span>
+        </div>
+      `).join('');
+    }
+
+    function addPersistentSite() {
+      const input = document.getElementById('newPersistentSiteInput');
+      if (!input) return;
+      let raw = input.value.trim().toLowerCase();
+      if (!raw) return;
+      raw = raw.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+      if (!raw) return;
+      if (!persistentSites.includes(raw)) {
+        persistentSites.push(raw);
+        savePersistentSites();
+        renderPersistentSites();
+        showStatus('Added ' + raw + ' to persistent whitelist');
+      } else {
+        showStatus(raw + ' is already whitelisted');
+      }
+      input.value = '';
+    }
+
+    function removePersistentSite(site) {
+      const idx = persistentSites.indexOf(site);
+      if (idx !== -1) {
+        persistentSites.splice(idx, 1);
+        savePersistentSites();
+        renderPersistentSites();
+        showStatus('Removed ' + site + ' from persistent whitelist');
+      }
+    }
+
+    function savePersistentSites() {
+      if (window.ipc) {
+        window.ipc.postMessage(JSON.stringify({
+          action: 'SaveSettings',
+          payload: {
+            settings_json: JSON.stringify({
+              privacy: {
+                persistent_sites: persistentSites
+              }
+            })
+          }
+        }));
+      }
+    }
+
     window.__syncSearchEngine = function(engine) {
       const select = document.getElementById('searchEngineSelect');
       if (select && engine) {
@@ -685,10 +845,36 @@ use evergreen_core::settings::Settings;
 
 pub fn get_settings_html(runtime_ver: &str, settings: &Settings) -> String {
     let download_dir_str = settings.downloads.default_folder.to_string_lossy();
+    let sites_json = serde_json::to_string(&settings.privacy.persistent_sites)
+        .unwrap_or_else(|_| "[]".to_string());
+    let chips_html = if settings.privacy.persistent_sites.is_empty() {
+        "<span class=\"chips-empty-hint\">No persistent domains configured. All sessions are strictly ephemeral.</span>".to_string()
+    } else {
+        settings
+            .privacy
+            .persistent_sites
+            .iter()
+            .map(|site| {
+                let escaped = site
+                    .replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;")
+                    .replace('"', "&quot;")
+                    .replace('\'', "&#039;");
+                format!(
+                    r#"<div class="domain-chip" data-domain="{escaped}"><span>{escaped}</span><span class="chip-remove" onclick="removePersistentSite('{escaped}')">&times;</span></div>"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    };
+
     let mut html = SETTINGS_TEMPLATE
         .replace("{{LOGO_BASE64}}", LOGO_BASE64.trim())
         .replace("Detecting...", &format!("v{} (Active)", runtime_ver))
-        .replace("{{DEFAULT_DOWNLOAD_FOLDER}}", &download_dir_str);
+        .replace("{{DEFAULT_DOWNLOAD_FOLDER}}", &download_dir_str)
+        .replace("{{PERSISTENT_SITES_JSON}}", &sites_json)
+        .replace("{{PERSISTENT_SITES_CHIPS}}", &chips_html);
 
     let engine = settings.search_engine.to_lowercase();
     html = html.replace(

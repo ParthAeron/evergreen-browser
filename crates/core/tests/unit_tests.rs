@@ -656,3 +656,66 @@ fn test_plugin_registry_feature_plugin_dynamic() {
     settings.features.enable_zoom_controls = false;
     assert_eq!(registry.enabled_plugins(&settings).len(), 0);
 }
+
+#[test]
+fn test_persistent_sites_matching() {
+    let mut settings = Settings::default();
+    assert!(!settings.is_site_persistent("https://github.com/login"));
+    assert!(!settings.is_site_persistent("github.com"));
+
+    settings.privacy.persistent_sites = vec![
+        "github.com".to_string(),
+        "*.google.com".to_string(),
+        "login.microsoft.com".to_string(),
+    ];
+
+    assert!(settings.is_site_persistent("github.com"));
+    assert!(settings.is_site_persistent("https://github.com"));
+    assert!(settings.is_site_persistent("https://github.com/login?foo=bar#hash"));
+    assert!(settings.is_site_persistent("https://www.github.com"));
+    assert!(settings.is_site_persistent("http://github.com:8080/path"));
+
+    assert!(settings.is_site_persistent("https://gist.github.com"));
+    assert!(settings.is_site_persistent("https://api.github.com/v3"));
+    assert!(settings.is_site_persistent("https://accounts.google.com/signin"));
+    assert!(settings.is_site_persistent("google.com"));
+    assert!(settings.is_site_persistent("https://login.microsoft.com/oauth2"));
+
+    assert!(!settings.is_site_persistent("https://attacker-github.com"));
+    assert!(!settings.is_site_persistent("https://fakegoogle.com"));
+    assert!(!settings.is_site_persistent("https://microsoft.com"));
+    assert!(!settings.is_site_persistent("https://reddit.com"));
+    assert!(!settings.is_site_persistent("evergreen://newtab"));
+    assert!(!settings.is_site_persistent("about:blank"));
+    assert!(!settings.is_site_persistent(""));
+
+    settings.privacy.ephemeral_default = false;
+    assert!(settings.is_site_persistent("https://reddit.com"));
+}
+
+#[test]
+fn test_settings_update_privacy_persistent_sites() {
+    let mut settings = Settings::default();
+    assert!(settings.privacy.persistent_sites.is_empty());
+
+    let partial = serde_json::json!({
+        "privacy": {
+            "persistent_sites": ["github.com", " https://accounts.google.com "]
+        }
+    });
+    settings.update_from_json(&partial);
+    assert_eq!(settings.privacy.persistent_sites.len(), 2);
+    assert!(settings.is_site_persistent("https://github.com"));
+    assert!(settings.is_site_persistent("https://accounts.google.com"));
+
+    let direct = serde_json::json!({
+        "persistent_sites": ["gitlab.com"]
+    });
+    settings.update_from_json(&direct);
+    assert_eq!(
+        settings.privacy.persistent_sites,
+        vec!["gitlab.com".to_string()]
+    );
+    assert!(settings.is_site_persistent("https://gitlab.com"));
+    assert!(!settings.is_site_persistent("https://github.com"));
+}

@@ -766,9 +766,11 @@ impl BrowserApp {
             format!("{}\n{}", NAV_WATCHER_SCRIPT, plugin_scripts)
         };
 
+        let is_persistent = self.settings.is_site_persistent(url);
+
         let mut builder = WebViewBuilder::new()
             .with_bounds(bounds)
-            .with_incognito(true)
+            .with_incognito(!is_persistent)
             .with_transparent(true)
             .with_background_color((24, 24, 32, 255))
             .with_initialization_script(&init_script)

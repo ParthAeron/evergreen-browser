@@ -72,10 +72,24 @@ const defaultDownloads = process.env.USERPROFILE
   ? path.join(process.env.USERPROFILE, 'Downloads')
   : path.join('C:', 'Users', 'Default', 'Downloads');
 
+const defaultSites = ['github.com'];
+const defaultChips = defaultSites
+  .map(
+    site => `
+        <div class="domain-chip" data-domain="${site}">
+          <span>${site}</span>
+          <span class="chip-remove" onclick="removePersistentSite('${site}')">&times;</span>
+        </div>
+      `
+  )
+  .join('');
+
 const settingsHtml = settingsRaw
   .replace(/\{\{LOGO_BASE64\}\}/g, logoFullB64)
   .replace('Detecting...', 'v153.0.4234.48 (Active)')
-  .replace(/\{\{DEFAULT_DOWNLOAD_FOLDER\}\}/g, defaultDownloads);
+  .replace(/\{\{DEFAULT_DOWNLOAD_FOLDER\}\}/g, defaultDownloads)
+  .replace(/\{\{PERSISTENT_SITES_JSON\}\}/g, JSON.stringify(defaultSites))
+  .replace(/\{\{PERSISTENT_SITES_CHIPS\}\}/g, defaultChips);
 
 // Read Chrome Strip template
 const chromeHtml = fs.readFileSync(path.join(REPO_ROOT, 'crates', 'app', 'ui', 'index.html'), 'utf8');
@@ -167,9 +181,42 @@ async function runVisualSuite() {
   const pageTitle = await page.$('.page-title');
   if (!pageTitle) throw new Error('Missing .page-title on Settings screen');
 
+  // Verify persistent site whitelist input and interactive domain addition
+  const siteInput = await page.$('#newPersistentSiteInput');
+  if (!siteInput) throw new Error('Missing #newPersistentSiteInput on Settings screen');
+  await page.fill('#newPersistentSiteInput', 'accounts.google.com');
+  await page.evaluate(() => addPersistentSite());
+  await page.waitForTimeout(100);
+
+  const chips = await page.$$('.domain-chip');
+  if (chips.length < 2) {
+    throw new Error(`Expected at least 2 domain chips after adding accounts.google.com, but found ${chips.length}`);
+  }
+  console.log(`  -> Persistent site whitelist verified: ${chips.length} domains active`);
+
+  // Capture Privacy & Isolation section with whitelist chips fully in view
+  await page.evaluate(() => {
+    const el = document.getElementById('persistentSitesList');
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' });
+  });
+  await page.waitForTimeout(100);
+  const privacySettingsPath = path.join(DOCS_SCREENSHOTS, '07-browser-settings-privacy-performance.png');
+  await page.screenshot({ path: privacySettingsPath });
+  console.log(`  -> Captured: ${privacySettingsPath} (Privacy & Persistent Whitelist)`);
+
+  // Scroll back to top for canonical general settings screenshot (showing dynamic runtime version)
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(100);
   const settingsPath = path.join(DOCS_SCREENSHOTS, '09-browser-settings-general.png');
   await page.screenshot({ path: settingsPath });
   console.log(`  -> Captured: ${settingsPath}`);
+
+  // Sync to repo docs/assets/screenshot_settings.png
+  const repoSettingsAsset = path.join(REPO_ROOT, 'docs', 'assets', 'screenshot_settings.png');
+  if (fs.existsSync(path.dirname(repoSettingsAsset))) {
+    fs.copyFileSync(privacySettingsPath, repoSettingsAsset);
+    console.log(`  -> Synced to: ${repoSettingsAsset}`);
+  }
 
   // 4. Strict TLS Security Interstitial
   console.log('\n[4/7] Verifying Strict TLS Security Interstitial...');

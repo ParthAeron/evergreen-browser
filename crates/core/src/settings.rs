@@ -210,6 +210,36 @@ impl Settings {
         }
     }
 
+    /// Returns true if the given URL or domain is whitelisted for persistent session storage.
+    pub fn is_site_persistent(&self, url_or_domain: &str) -> bool {
+        if !self.privacy.ephemeral_default {
+            return true;
+        }
+        let domain = extract_domain(url_or_domain);
+        if domain.is_empty() {
+            return false;
+        }
+        self.privacy.persistent_sites.iter().any(|allowed| {
+            let trimmed = allowed.trim().to_lowercase();
+            if trimmed.is_empty() {
+                return false;
+            }
+            let base_pattern = if let Some(stripped) = trimmed.strip_prefix("*.") {
+                stripped
+            } else {
+                trimmed.as_str()
+            };
+            let pattern_domain = extract_domain(base_pattern);
+            if pattern_domain.is_empty() {
+                return false;
+            }
+            if domain == pattern_domain || domain.ends_with(&format!(".{}", pattern_domain)) {
+                return true;
+            }
+            false
+        })
+    }
+
     /// Update settings in place from a partial or complete JSON value.
     pub fn update_from_json(&mut self, val: &serde_json::Value) {
         if let Some(obj) = val.as_object() {
@@ -343,6 +373,33 @@ impl Settings {
                             self.features.enable_permissions_prompt = b;
                         }
                     }
+                    "privacy" => {
+                        if let Some(p_obj) = v.as_object() {
+                            if let Some(b) =
+                                p_obj.get("ephemeral_default").and_then(|x| x.as_bool())
+                            {
+                                self.privacy.ephemeral_default = b;
+                            }
+                            if let Some(arr) =
+                                p_obj.get("persistent_sites").and_then(|x| x.as_array())
+                            {
+                                self.privacy.persistent_sites = arr
+                                    .iter()
+                                    .filter_map(|x| x.as_str().map(|s| s.trim().to_string()))
+                                    .filter(|s| !s.is_empty())
+                                    .collect();
+                            }
+                        }
+                    }
+                    "persistent_sites" => {
+                        if let Some(arr) = v.as_array() {
+                            self.privacy.persistent_sites = arr
+                                .iter()
+                                .filter_map(|x| x.as_str().map(|s| s.trim().to_string()))
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -378,4 +435,47 @@ impl Settings {
         std::fs::write(path, content)?;
         Ok(())
     }
+}
+
+/// Helper to extract a normalized domain from a URL or raw domain string.
+pub fn extract_domain(input: &str) -> String {
+    let mut s = input.trim();
+    if s.is_empty() {
+        return String::new();
+    }
+    // Reject internal evergreen schemes or about:blank
+    if s.starts_with("evergreen://")
+        || s.starts_with("about:")
+        || s.starts_with("data:")
+        || s.starts_with("javascript:")
+    {
+        return String::new();
+    }
+    // Strip http:// or https:// or any other scheme
+    if let Some(idx) = s.find("://") {
+        s = &s[idx + 3..];
+    }
+    // Strip trailing path/query/fragment
+    if let Some(idx) = s.find(['/', '?', '#']) {
+        s = &s[..idx];
+    }
+    // Strip userinfo if present (user:pass@host)
+    if let Some(idx) = s.find('@') {
+        s = &s[idx + 1..];
+    }
+    // Strip port if present (host:8080)
+    if let Some(idx) = s.rfind(':') {
+        if !s.starts_with('[') || s.ends_with(']') {
+            s = &s[..idx];
+        }
+    }
+    // Strip surrounding brackets for IPv6
+    s = s.trim_matches(|c| c == '[' || c == ']');
+    // Normalize to lowercase
+    let mut domain = s.to_lowercase();
+    // Strip optional leading www.
+    if let Some(stripped) = domain.strip_prefix("www.") {
+        domain = stripped.to_string();
+    }
+    domain
 }
