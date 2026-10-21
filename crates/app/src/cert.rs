@@ -135,41 +135,68 @@ impl CertificateCache {
 
         // Spawn background fetch for actual live X.509 attributes
         if is_https {
-            let cache_clone = self.clone();
-            let target_host = host.clone();
-            std::thread::spawn(move || {
-                if let Some(live_info) = fetch_live_certificate(&target_host) {
-                    cache_clone.insert(target_host, live_info);
-                }
-            });
+            if let Some(target_host) = sanitize_host(&host) {
+                let cache_clone = self.clone();
+                std::thread::spawn(move || {
+                    if let Some(live_info) = fetch_live_certificate(&target_host) {
+                        cache_clone.insert(target_host, live_info);
+                    }
+                });
+            }
         }
 
         initial_info
     }
 }
 
+/// Strictly validate a host string that came from untrusted input (page URL or IPC payload).
+///
+/// Returns a canonical host only for bare DNS names and IP literals. Anything that could
+/// alter the meaning of the generated script (quotes, separators, whitespace, userinfo or
+/// an explicit port) is rejected.
+pub fn sanitize_host(raw: &str) -> Option<String> {
+    let candidate = raw.trim();
+    if candidate.is_empty() || candidate.len() > 253 {
+        return None;
+    }
+    if candidate.starts_with('.') || candidate.starts_with('-') || candidate.contains("..") {
+        return None;
+    }
+    if !candidate
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'))
+    {
+        return None;
+    }
+    let uri = wry::http::Uri::try_from(format!("https://{}", candidate)).ok()?;
+    let host = uri.host()?;
+    if !host.eq_ignore_ascii_case(candidate) || uri.port_u16().is_some() {
+        return None;
+    }
+    Some(host.to_string())
+}
+
 /// Fetch live X.509 certificate attributes using Windows PowerShell SslStream
 pub fn fetch_live_certificate(host: &str) -> Option<SecurityInfo> {
-    let script = format!(
-        "$h='{}'; try {{ \
+    let host = sanitize_host(host)?;
+    let script = "$h=$env:EVERGREEN_CERT_HOST; try { \
             $tcp = New-Object System.Net.Sockets.TcpClient($h, 443); \
-            $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({{$true}})); \
+            $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({$true})); \
             $ssl.AuthenticateAsClient($h); \
             $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate); \
             Write-Output ('EV_CERT|' + $cert.Subject + '|' + $cert.Issuer + '|' + $cert.NotBefore.ToString('yyyy-MM-dd') + '|' + $cert.NotAfter.ToString('yyyy-MM-dd') + '|' + $cert.Thumbprint + '|' + $cert.SerialNumber + '|' + $cert.SignatureAlgorithm.FriendlyName); \
             $tcp.Close(); \
-        }} catch {{}}",
-        host
-    );
+        } catch {}";
 
     let mut cmd = Command::new("powershell");
+    cmd.env("EVERGREEN_CERT_HOST", &host);
     cmd.args([
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        &script,
+        script,
     ]);
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -205,35 +232,76 @@ pub fn fetch_live_certificate(host: &str) -> Option<SecurityInfo> {
 
 /// Open the native Windows Certificate Viewer dialog (`X509Certificate2UI`)
 pub fn open_native_certificate_dialog(host: &str) {
-    if host.is_empty() || host.starts_with("evergreen://") {
+    let Some(host) = sanitize_host(host) else {
+        eprintln!(
+            "[CERT DIALOG REJECTED] Refusing to open a certificate dialog for {:?}",
+            host
+        );
         return;
-    }
+    };
 
-    let host_owned = host.to_string();
     std::thread::spawn(move || {
-        let script = format!(
-            "Add-Type -AssemblyName System.Security; $h='{}'; try {{ \
+        let script = "Add-Type -AssemblyName System.Security; $h=$env:EVERGREEN_CERT_HOST; try { \
                 $tcp = New-Object System.Net.Sockets.TcpClient($h, 443); \
-                $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({{$true}})); \
+                $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({$true})); \
                 $ssl.AuthenticateAsClient($h); \
                 $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate); \
                 [System.Security.Cryptography.X509Certificates.X509Certificate2UI]::DisplayCertificate($cert); \
                 $tcp.Close(); \
-            }} catch {{}}",
-            host_owned
-        );
+            } catch {}";
 
         let mut cmd = Command::new("powershell");
+        cmd.env("EVERGREEN_CERT_HOST", &host);
         cmd.args([
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            &script,
+            script,
         ]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
         let _ = cmd.spawn();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_host;
+
+    #[test]
+    fn rejects_injection_shaped_hosts() {
+        for payload in [
+            "'; Write-Output EVERGREEN_INJECTION_PROOF; #",
+            "example.com'; Start-Process calc; #",
+            "'",
+            "$(Get-Process)",
+            "`whoami`",
+            "example.com; whoami",
+            "user@example.com",
+            "example.com:443",
+            "example.com/path",
+            "exa mple.com",
+            "",
+            "   ",
+        ] {
+            assert!(
+                sanitize_host(payload).is_none(),
+                "payload should be rejected: {:?}",
+                payload
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_plain_hosts() {
+        assert_eq!(sanitize_host("example.com").as_deref(), Some("example.com"));
+        assert_eq!(sanitize_host("127.0.0.1").as_deref(), Some("127.0.0.1"));
+        assert_eq!(sanitize_host("[::1]").as_deref(), Some("[::1]"));
+        assert_eq!(
+            sanitize_host("sub.domain.example").as_deref(),
+            Some("sub.domain.example")
+        );
+    }
 }
