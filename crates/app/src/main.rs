@@ -14,9 +14,9 @@ use evergreen_core::env::{detect_webview2_runtime, is_process_elevated};
 use evergreen_core::ipc::{HostToUiMessage, UiToHostMessage};
 use evergreen_core::tabs::{TabId, TabManager, TabState};
 use evergreen_core::updater::run_local_command;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -456,6 +456,71 @@ impl WindowContext {
     }
 }
 
+/// Tab ids whose current document is an app-owned internal page (`evergreen://...`).
+/// Internal pages are trusted; remote pages loaded in the same WebView are not.
+static INTERNAL_TABS: Mutex<Option<HashSet<TabId>>> = Mutex::new(None);
+
+fn set_tab_internal(tab_id: TabId, internal: bool) {
+    if let Ok(mut guard) = INTERNAL_TABS.lock() {
+        let set = guard.get_or_insert_with(HashSet::new);
+        if internal {
+            set.insert(tab_id);
+        } else {
+            set.remove(&tab_id);
+        }
+    }
+}
+
+fn is_tab_internal(tab_id: TabId) -> bool {
+    INTERNAL_TABS
+        .lock()
+        .map(|guard| {
+            guard
+                .as_ref()
+                .map(|set| set.contains(&tab_id))
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+/// Messages an untrusted page may send through `window.ipc`.
+///
+/// Everything else (settings, native dialogs, process launches, history and
+/// window manipulation) is reserved for the app-owned chrome/sidebar UI.
+fn is_allowed_from_content(msg: &UiToHostMessage) -> bool {
+    matches!(
+        msg,
+        UiToHostMessage::PageNavigated { .. }
+            | UiToHostMessage::FindResult { .. }
+            | UiToHostMessage::BypassCertificateError { .. }
+    )
+}
+
+/// Validate a `BypassCertificateError` payload coming from page content.
+///
+/// Returns the canonical host only when the host is well formed, the URL scheme is
+/// HTTP(S), and both agree on the same host.
+fn validate_cert_bypass(host: &str, url: &str) -> Result<String, &'static str> {
+    let Some(safe_host) = cert::sanitize_host(host) else {
+        return Err("invalid host");
+    };
+    let target = wry::http::Uri::try_from(url).map_err(|_| "invalid url")?;
+    if !matches!(target.scheme_str(), Some("http") | Some("https")) {
+        return Err("unsupported scheme");
+    }
+    match target.host() {
+        Some(target_host) if target_host.eq_ignore_ascii_case(&safe_host) => Ok(safe_host),
+        _ => Err("host/url mismatch"),
+    }
+}
+
+/// Resolve a caller-supplied tab URL through the same scheme validator used by the
+/// address bar. Anything that fails validation falls back to the new tab page.
+fn resolve_tab_url(raw: Option<String>, search_template: &str) -> String {
+    raw.and_then(|value| normalize_url(&value, search_template).ok())
+        .unwrap_or_else(|| "evergreen://newtab".to_string())
+}
+
 pub(crate) fn extract_host(url: &str) -> Option<String> {
     let after_scheme = url
         .strip_prefix("https://")
@@ -769,6 +834,7 @@ impl BrowserApp {
         };
 
         let is_persistent = self.settings.is_site_persistent(url);
+        set_tab_internal(tab_id, url.starts_with("evergreen://"));
         let settings_nav = self.settings.clone();
 
         let mut builder = WebViewBuilder::new()
@@ -851,11 +917,19 @@ impl BrowserApp {
                     ));
                     return false;
                 }
+                set_tab_internal(tab_id, nav_url.starts_with("evergreen://"));
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(win_id, tab_id, nav_url));
                 true
             })
             .with_ipc_handler(move |req: wry::http::Request<String>| {
                 if let Ok(msg) = serde_json::from_str::<UiToHostMessage>(req.body()) {
+                    if !is_tab_internal(tab_id) && !is_allowed_from_content(&msg) {
+                        eprintln!(
+                            "[IPC] Blocked privileged message from page content (tab {:?}): {:?}",
+                            tab_id, msg
+                        );
+                        return;
+                    }
                     let _ = proxy_ipc.send_event(BrowserEvent::Ipc(win_id, msg));
                 }
             })
@@ -875,7 +949,7 @@ impl BrowserApp {
 
     fn handle_create_tab(&mut self, win_id: WindowId, url: Option<String>) {
         let tab_id = self.next_tab_id();
-        let target_url = url.unwrap_or_else(|| "evergreen://newtab".to_string());
+        let target_url = resolve_tab_url(url, self.settings.search_url_template());
 
         if let Some(win_ctx) = self.windows.get_mut(&win_id) {
             let tab_state = TabState {
@@ -970,6 +1044,7 @@ impl BrowserApp {
                 drop(wv);
             }
             win_ctx.tab_persisted.remove(&target_id);
+            set_tab_internal(target_id, false);
 
             match win_ctx.tab_manager.close_tab(target_id) {
                 Some(next_active_id) => {
@@ -1588,9 +1663,19 @@ impl ApplicationHandler<BrowserEvent> for BrowserApp {
                     }
                 }
                 UiToHostMessage::BypassCertificateError { tab_id, host, url } => {
-                    eprintln!("[TLS BYPASS INITIATED] Bypassing certificate error for host: {} on Tab {:?}", host, tab_id);
+                    let safe_host = match validate_cert_bypass(&host, &url) {
+                        Ok(safe_host) => safe_host,
+                        Err(reason) => {
+                            eprintln!(
+                                "[TLS BYPASS REJECTED] {} (host: {:?}, url: {:?})",
+                                reason, host, url
+                            );
+                            return;
+                        }
+                    };
+                    eprintln!("[TLS BYPASS INITIATED] Bypassing certificate error for host: {} on Tab {:?}", safe_host, tab_id);
                     if let Ok(mut set) = self.allowed_cert_hosts.lock() {
-                        set.insert(host.clone());
+                        set.insert(safe_host);
                     }
                     if let Some(win) = self.windows.get(&win_id) {
                         if let Some(wv) = win.tabs.get(&tab_id) {
@@ -2278,4 +2363,219 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     event_loop.run_app(&mut app)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod ipc_trust_tests {
+    use super::{
+        is_allowed_from_content, is_tab_internal, resolve_tab_url, set_tab_internal,
+        validate_cert_bypass,
+    };
+    use evergreen_core::ipc::UiToHostMessage;
+    use evergreen_core::tabs::TabId;
+
+    #[test]
+    fn page_content_cannot_reach_privileged_host_actions() {
+        let blocked = [
+            UiToHostMessage::OpenCertificateDialog {
+                host: "'; Write-Output EVERGREEN_INJECTION_PROOF; #".to_string(),
+            },
+            UiToHostMessage::SaveSettings {
+                settings_json: "{}".to_string(),
+            },
+            UiToHostMessage::RunEngineUpdate,
+            UiToHostMessage::RunForkUpdate,
+            UiToHostMessage::CreateTab {
+                url: Some("file:///C:/Windows/System32/calc.exe".to_string()),
+            },
+            UiToHostMessage::Navigate {
+                url: "file:///C:/Windows/System32/calc.exe".to_string(),
+            },
+            UiToHostMessage::OpenDevTools,
+            UiToHostMessage::OpenNewWindow,
+            UiToHostMessage::OpenSettings,
+            UiToHostMessage::SwitchTab { id: TabId(1) },
+            UiToHostMessage::CloseTab { id: TabId(1) },
+            UiToHostMessage::SetSearchEngine {
+                engine: "bing".to_string(),
+            },
+        ];
+
+        for message in blocked {
+            assert!(
+                !is_allowed_from_content(&message),
+                "page content must not reach: {:?}",
+                message
+            );
+        }
+    }
+
+    #[test]
+    fn page_content_keeps_navigation_and_certificate_events() {
+        assert!(is_allowed_from_content(&UiToHostMessage::PageNavigated {
+            url: "https://example.com/".to_string(),
+            title: "Example".to_string(),
+        }));
+        assert!(is_allowed_from_content(&UiToHostMessage::FindResult {
+            current: 1,
+            total: 3,
+        }));
+        assert!(is_allowed_from_content(
+            &UiToHostMessage::BypassCertificateError {
+                tab_id: TabId(7),
+                host: "example.com".to_string(),
+                url: "https://example.com/".to_string(),
+            }
+        ));
+    }
+
+    #[test]
+    fn cert_bypass_requires_matching_host_and_http_scheme() {
+        assert_eq!(
+            validate_cert_bypass("example.com", "https://example.com/"),
+            Ok("example.com".to_string())
+        );
+        assert_eq!(
+            validate_cert_bypass("example.com", "http://example.com/login"),
+            Ok("example.com".to_string())
+        );
+
+        for (host, url) in [
+            ("example.com", "https://other.example/"),
+            ("example.com", "https://evil.example/?h=example.com"),
+            ("example.com", "file:///C:/Windows/System32/calc.exe"),
+            ("example.com", "javascript:alert(1)"),
+            ("example.com", "data:text/html,<h1>x</h1>"),
+            ("'; Start-Process calc; #", "https://evil.example/"),
+            ("example.com:443", "https://example.com:443/"),
+            ("", "https://example.com/"),
+            ("example.com", ""),
+            ("example.com", "not a url"),
+        ] {
+            assert!(
+                validate_cert_bypass(host, url).is_err(),
+                "should be rejected: host={:?} url={:?}",
+                host,
+                url
+            );
+        }
+    }
+
+    #[test]
+    fn tab_url_resolution_rejects_unsafe_schemes() {
+        let template = "https://duckduckgo.com/?q=%s";
+        assert_eq!(
+            resolve_tab_url(Some("https://example.com".to_string()), template),
+            "https://example.com"
+        );
+        assert_eq!(
+            resolve_tab_url(Some("github.com".to_string()), template),
+            "https://github.com"
+        );
+        assert_eq!(resolve_tab_url(None, template), "evergreen://newtab");
+
+        for raw in [
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "data:text/html,<h1>x</h1>",
+            "vbscript:msgbox(1)",
+        ] {
+            assert_eq!(
+                resolve_tab_url(Some(raw.to_string()), template),
+                "evergreen://newtab",
+                "should fall back to the new tab page: {:?}",
+                raw
+            );
+        }
+    }
+
+    #[test]
+    fn internal_tab_state_tracks_lifecycle() {
+        let tab = TabId(9_000_001);
+        assert!(!is_tab_internal(tab));
+
+        set_tab_internal(tab, true);
+        assert!(is_tab_internal(tab));
+
+        set_tab_internal(tab, true);
+        assert!(is_tab_internal(tab));
+
+        set_tab_internal(tab, false);
+        assert!(!is_tab_internal(tab));
+
+        assert!(!is_tab_internal(TabId(9_000_002)));
+    }
+
+    /// Guards the plumbing, not just the predicate: if someone removes the check from
+    /// the tab WebView's IPC handler, the behavioural tests above still pass, so this
+    /// asserts the call site itself.
+    #[test]
+    fn tab_webview_ipc_handler_enforces_the_allowlist() {
+        const SOURCE: &str = include_str!("main.rs");
+
+        let start = SOURCE
+            .find("fn create_tab_webview(")
+            .expect("create_tab_webview must exist");
+        let end = SOURCE[start..]
+            .find("\n    fn ")
+            .map(|offset| start + offset)
+            .unwrap_or(SOURCE.len());
+        let body = &SOURCE[start..end];
+
+        let handler = body
+            .find(".with_ipc_handler(")
+            .expect("the tab WebView must register an IPC handler");
+        let handler = &body[handler..];
+
+        assert!(
+            handler.contains("is_allowed_from_content(&msg)"),
+            "the tab WebView IPC handler must call is_allowed_from_content"
+        );
+        assert!(
+            handler.contains("is_tab_internal(tab_id)"),
+            "the tab WebView IPC handler must exempt internal pages via is_tab_internal"
+        );
+
+        let guard_at = handler
+            .find("is_allowed_from_content(&msg)")
+            .expect("guard present");
+        let forward_at = handler
+            .find("BrowserEvent::Ipc(")
+            .expect("the handler forwards messages to the host");
+        assert!(
+            guard_at < forward_at,
+            "the allowlist check must run before the message is forwarded"
+        );
+    }
+
+    #[test]
+    fn tab_webview_navigation_handler_orders_internal_trust_after_cancellation() {
+        const SOURCE: &str = include_str!("main.rs");
+
+        let start = SOURCE
+            .find("fn create_tab_webview(")
+            .expect("create_tab_webview must exist");
+        let end = SOURCE[start..]
+            .find("\n    fn ")
+            .map(|offset| start + offset)
+            .unwrap_or(SOURCE.len());
+        let body = &SOURCE[start..end];
+
+        let nav_handler = body
+            .find(".with_navigation_handler(")
+            .expect("the tab WebView must register a navigation handler");
+        let nav_body = &body[nav_handler..];
+
+        let cancel_settings = nav_body
+            .find("nav_url.starts_with(\"evergreen://settings\")")
+            .expect("settings navigation intercept must exist");
+        let set_internal = nav_body
+            .find("set_tab_internal(tab_id, nav_url.starts_with(\"evergreen://\"))")
+            .expect("set_tab_internal must exist in navigation handler");
+
+        assert!(
+            cancel_settings < set_internal,
+            "set_tab_internal must run AFTER cancelled navigation checks to prevent trust leaks"
+        );
+    }
 }
