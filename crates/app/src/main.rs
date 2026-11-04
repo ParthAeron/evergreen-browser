@@ -905,7 +905,6 @@ impl BrowserApp {
                 if nav_url.starts_with("data:text/html") {
                     return true;
                 }
-                set_tab_internal(tab_id, nav_url.starts_with("evergreen://"));
                 if nav_url.starts_with("evergreen://settings") {
                     let _ = proxy_nav_interceptor
                         .send_event(BrowserEvent::Ipc(win_id, UiToHostMessage::OpenSettings));
@@ -918,6 +917,7 @@ impl BrowserApp {
                     ));
                     return false;
                 }
+                set_tab_internal(tab_id, nav_url.starts_with("evergreen://"));
                 let _ = proxy_nav.send_event(BrowserEvent::TabNavigated(win_id, tab_id, nav_url));
                 true
             })
@@ -2545,6 +2545,37 @@ mod ipc_trust_tests {
         assert!(
             guard_at < forward_at,
             "the allowlist check must run before the message is forwarded"
+        );
+    }
+
+    #[test]
+    fn tab_webview_navigation_handler_orders_internal_trust_after_cancellation() {
+        const SOURCE: &str = include_str!("main.rs");
+
+        let start = SOURCE
+            .find("fn create_tab_webview(")
+            .expect("create_tab_webview must exist");
+        let end = SOURCE[start..]
+            .find("\n    fn ")
+            .map(|offset| start + offset)
+            .unwrap_or(SOURCE.len());
+        let body = &SOURCE[start..end];
+
+        let nav_handler = body
+            .find(".with_navigation_handler(")
+            .expect("the tab WebView must register a navigation handler");
+        let nav_body = &body[nav_handler..];
+
+        let cancel_settings = nav_body
+            .find("nav_url.starts_with(\"evergreen://settings\")")
+            .expect("settings navigation intercept must exist");
+        let set_internal = nav_body
+            .find("set_tab_internal(tab_id, nav_url.starts_with(\"evergreen://\"))")
+            .expect("set_tab_internal must exist in navigation handler");
+
+        assert!(
+            cancel_settings < set_internal,
+            "set_tab_internal must run AFTER cancelled navigation checks to prevent trust leaks"
         );
     }
 }
