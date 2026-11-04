@@ -19,7 +19,7 @@ graph TD
 
     subgraph Evergreen ["Evergreen Browser Architecture"]
         EGEngine["OS-Maintained WebView2 Evergreen Runtime (0 MB bundled)"]
-        EGDisk["2.71 MB Standalone Disk Footprint"]
+        EGDisk["2.77 MB Standalone Disk Footprint"]
         EGZero["Zero Telemetry, Zero Background Daemons, 100% Ephemeral Sessions"]
         EGRAM["3.84 MB Host Shell Private RAM"]
     end
@@ -28,7 +28,7 @@ graph TD
 ### Architectural Invariants
 
 1. **Zero Engine Bundling**: The browser does not package a standalone rendering engine. Instead, it embeds the Microsoft Edge WebView2 Evergreen Runtime already maintained and updated by Windows Update. Upstream Chromium security patches apply automatically at the OS level without local recompilation.
-2. **Minimalist Native Shell**: The host shell is written in Rust (`windows-msvc`) and compiles to a static native PE executable (2.71 MB). It requires no external runtimes (.NET, Node.js, V8) for the shell host.
+2. **Minimalist Native Shell**: The host shell is written in Rust (`windows-msvc`) and compiles to a static native PE executable (2.77 MB). It requires no external runtimes (.NET, Node.js, V8) for the shell host.
 3. **Decoupled Business Core**: Browser business logic (tab state, settings, plugin registration, typed IPC protocols) is strictly isolated in an engine-agnostic crate (`evergreen-core`). Rendering engine bindings are isolated behind an `EngineHost` trait in `evergreen-engine-webview2`.
 4. **Mandatory Hardware Acceleration**: The Chromium GPU process runs with DirectComposition and DirectX 11/12 hardware acceleration enabled for rasterization, WebGL, WebGPU, and video decoding.
 5. **Renderer Sandboxing**: Chromium site isolation and sandboxing execute with standard least-privilege integrity. Process execution with Administrator tokens is refused at startup.
@@ -90,8 +90,8 @@ evergreen-browser/
 │       │   └── installer_ui.rs     # Fluent dark setup & uninstaller HTML/CSS/JS templates
 │       └── assets/                 # Staged release binary payload & embedded icons
 ├── dist/                           # Release distribution directory
-│   ├── EvergreenBrowserSetup.exe   # Standalone 4-step setup installer (4.04 MB)
-│   └── evergreen-browser.exe       # Standalone portable executable (2.71 MB)
+│   ├── EvergreenBrowserSetup.exe   # Standalone 4-step setup installer (4.11 MB)
+│   └── evergreen-browser.exe       # Standalone portable executable (2.77 MB)
 ├── docs/                           # Documentation suite
 └── scripts/                        # Automation & testing scripts
 ```
